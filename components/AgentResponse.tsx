@@ -1,57 +1,202 @@
 /**
- * AgentResponse - 统一的 Agent 响应块组件
+ * AgentResponse - Agent 消息组件
+ * 对齐 PRD v3 3.3.3 组件规格
+ *
+ * 三层结构：
+ * - 状态栏（StatusBar）：显示当前执行状态
+ * - 调用栈（CallStack）：显示工具/能力调用
+ * - 内容区（ContentArea）：显示文本输出和知识引用
  */
 
 import React, { useState, useEffect } from 'react';
-import { RefreshCw, Copy, ThumbsUp, ThumbsDown, Check, BookOpen, ChevronDown, ChevronUp, AlertTriangle, Loader2, Clock, Zap } from 'lucide-react';
-import { PageState, FeatureOptions, KnowledgeSource, ExecutionStep } from '../types';
+import {
+  RefreshCw,
+  Copy,
+  ThumbsUp,
+  ThumbsDown,
+  Check,
+  BookOpen,
+  ChevronDown,
+  ChevronUp,
+  AlertTriangle,
+  Loader2,
+} from 'lucide-react';
+import {
+  PageStateConfig,
+  FeatureOptions,
+  KnowledgeSource,
+  ToolCall,
+  TOOL_NAME_MAP,
+} from '../types';
 import { FeedbackPanel } from './FeedbackPanel';
 
 interface AgentResponseProps {
-  pageState: PageState;
+  stateConfig: PageStateConfig;
   features: FeatureOptions;
   isPlayground: boolean;
   onRegenerate?: () => void;
+  // 场景D多轮对话支持
+  isFirstBubbleInD?: boolean;  // 气泡1：请求确认
+  isSecondBubbleInD?: boolean; // 气泡2：继续执行
 }
 
-// Mock 数据 - 知识引用（按文件去重）
+// ============================================
+// Mock 数据
+// ============================================
+
 const mockKnowledgeSources: KnowledgeSource[] = [
-  { fileId: '1', fileName: '产品手册.pdf' },
-  { fileId: '2', fileName: '服务指南.docx' },
+  { fileId: '1', fileName: 'EVA 产品介绍.pdf' },
+  { fileId: '2', fileName: '功能清单.md' },
 ];
 
-// Plan 模式执行中
-const mockPlanExecutingSteps: ExecutionStep[] = [
-  { id: '1', name: '分析用户需求', status: 'done' },
-  { id: '2', name: '收集竞品信息', status: 'running', subSteps: [
-    { id: '2-1', name: '商业情报', status: 'running' }
-  ]},
-  { id: '3', name: '整理分析报告', status: 'pending' },
-  { id: '4', name: '生成最终回答', status: 'pending' },
+// 场景B：能力调用（嵌套工具）
+const mockToolCalls_B: ToolCall[] = [
+  {
+    id: '1',
+    toolId: 'task_customer_service',
+    friendlyName: TOOL_NAME_MAP['task_customer_service'],
+    status: 'done',
+    children: [
+      {
+        id: '1-1',
+        toolId: 'knowledge_search_tool',
+        friendlyName: TOOL_NAME_MAP['knowledge_search_tool'],
+        status: 'done',
+      },
+    ],
+  },
 ];
 
-// Plan 模式完成（展示完整 Plan + 调用的能力）
-const mockPlanCompletedSteps: ExecutionStep[] = [
-  { id: '1', name: '分析用户需求', status: 'done' },
-  { id: '2', name: '收集竞品信息', status: 'done', subSteps: [
-    { id: '2-1', name: '商业情报', status: 'done' }
-  ]},
-  { id: '3', name: '整理分析报告', status: 'done', subSteps: [
-    { id: '3-1', name: '智能客服', status: 'done' },
-    { id: '3-2', name: '内容营销', status: 'done' }
-  ]},
-  { id: '4', name: '生成最终回答', status: 'done' },
+const mockToolCalls_B_Running: ToolCall[] = [
+  {
+    id: '1',
+    toolId: 'task_customer_service',
+    friendlyName: TOOL_NAME_MAP['task_customer_service'],
+    status: 'running',
+    children: [
+      {
+        id: '1-1',
+        toolId: 'knowledge_search_tool',
+        friendlyName: TOOL_NAME_MAP['knowledge_search_tool'],
+        status: 'running',
+      },
+    ],
+  },
 ];
 
-// 单能力执行中
-const mockSingleExecutingSteps: ExecutionStep[] = [
-  { id: '1', name: '智能客服', status: 'running', subSteps: [{ id: '1-1', name: '正在查阅知识库...', status: 'running' }] },
+// 场景C/D：任务规划的嵌套调用（能力 -> 工具）
+const mockToolCalls_C = (taskProgress: string): ToolCall[] => {
+  const taskNum = parseInt(taskProgress.replace('task', ''));
+
+  // 根据任务进度构建嵌套的工具调用
+  const children: ToolCall[] = [];
+
+  if (taskNum >= 1) {
+    children.push({
+      id: '1-1',
+      toolId: 'knowledge_search_tool',
+      friendlyName: TOOL_NAME_MAP['knowledge_search_tool'],
+      status: taskNum > 1 ? 'done' : 'running',
+    });
+  }
+  if (taskNum >= 2) {
+    children.push({
+      id: '1-2',
+      toolId: 'web_search',
+      friendlyName: TOOL_NAME_MAP['web_search'],
+      status: taskNum > 2 ? 'done' : 'running',
+    });
+  }
+  if (taskNum >= 3) {
+    children.push({
+      id: '1-3',
+      toolId: 'calculator',
+      friendlyName: TOOL_NAME_MAP['calculator'],
+      status: taskNum > 3 ? 'done' : 'running',
+    });
+  }
+
+  // 返回嵌套结构：能力包含工具
+  return [
+    {
+      id: '1',
+      toolId: 'task_business_intelligence',
+      friendlyName: TOOL_NAME_MAP['task_business_intelligence'],
+      status: taskNum > 3 ? 'done' : 'running',
+      children,
+    },
+  ];
+};
+
+// 回答内容
+const ANSWERS = {
+  A: {
+    full: `你好！我是智能助手，很高兴为您服务。
+
+我可以帮您：
+- 查询产品信息和价格
+- 了解退换货政策
+- 查询订单状态
+- 联系人工客服
+
+请问有什么可以帮您的？`,
+    streaming: `你好！我是智能助手，很高兴为您服务。
+
+我可以帮您：`,
+  },
+  B: {
+    full: `根据我们的政策：
+
+1. 7天内可无理由退换货
+2. 质量问题30天内可退换
+3. 退换货请保持商品完好并附带发票
+
+如需办理退换货，请联系客服提供订单号。`,
+    streaming: `根据我们的政策：
+
+1. 7天内可无理由退换货
+2. 质量问题30天内`,
+  },
+  C: {
+    full: `根据分析，主要竞品有以下几家：
+
+1. **竞品A**：市场份额约35%，主打性价比路线
+2. **竞品B**：市场份额约25%，专注高端市场
+3. **竞品C**：市场份额约15%，以服务见长
+
+**建议**：关注竞品A的定价策略和竞品B的产品创新。`,
+    streaming: `根据分析，主要竞品有以下几家：
+
+1. **竞品A**：市场份额约35%，主打性价比`,
+  },
+  D_confirm: `我分析了以下 3 个竞品：
+- 竞品A：xxx
+- 竞品B：xxx
+- 竞品C：xxx
+
+请问是否继续整理报告？`,
+  D_final: `根据分析，最终方案建议如下：
+
+1. **短期策略**：加强价格竞争力
+2. **中期策略**：提升产品差异化
+3. **长期策略**：建立品牌护城河`,
+};
+
+// 任务列表数据
+const TASKS = [
+  { id: '1', content: '收集需求信息' },
+  { id: '2', content: '分析竞品数据' },
+  { id: '3', content: '整理分析报告' },
+  { id: '4', content: '输出最终方案' },
 ];
 
-// 单能力完成
-const mockSingleCompletedSteps: ExecutionStep[] = [
-  { id: '1', name: '智能客服', status: 'done', subSteps: [{ id: '1-1', name: '查阅了 2 条知识', status: 'done' }] },
-];
+// 状态栏文案映射（根据工具类型展示通用文案）
+const STATUS_TEXT_MAP: Record<string, string> = {
+  'knowledge_search_tool': '正在翻阅资料...',
+  'web_search': '正在联网搜索...',
+  'calculator': '正在计算...',
+  'weather_query': '正在查询天气...',
+};
 
 // 终端用户等待提示文字
 const waitingTexts = [
@@ -61,64 +206,304 @@ const waitingTexts = [
   '马上就好...',
 ];
 
-const multiAnswer = `根据分析，主要竞品有以下几家：
+// ============================================
+// 子组件
+// ============================================
 
-1. 竞品A：市场份额约35%，主打性价比路线
-2. 竞品B：市场份额约25%，专注高端市场
-3. 竞品C：市场份额约15%，以服务见长
+// 状态栏组件
+const StatusBar: React.FC<{
+  visible: boolean;
+  text: string;
+  type: 'thinking' | 'executing' | 'stopped' | 'failed';
+}> = ({ visible, text, type }) => {
+  if (!visible) return null;
 
-建议关注竞品A的定价策略和竞品B的产品创新。`;
+  const getIcon = () => {
+    switch (type) {
+      case 'thinking':
+      case 'executing':
+        return <Loader2 size={16} className="animate-spin text-primary-500" />;
+      case 'stopped':
+        return <span className="text-slate-400">⏹️</span>;
+      case 'failed':
+        return <AlertTriangle size={16} className="text-danger-500" />;
+    }
+  };
 
-const singleAnswer = `根据我们的政策：
+  const getTextClass = () => {
+    switch (type) {
+      case 'failed':
+        return 'text-danger-500';
+      case 'stopped':
+        return 'text-slate-400';
+      default:
+        return 'text-slate-600';
+    }
+  };
 
-1. 7天内可无理由退换货
-2. 质量问题30天内可退换
-3. 退换货请保持商品完好并附带发票
+  return (
+    <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100">
+      {getIcon()}
+      <span className={`text-sm ${getTextClass()}`}>{text}</span>
+    </div>
+  );
+};
 
-如需办理退换货，请联系客服提供订单号。`;
+// 调用栈组件
+const CallStack: React.FC<{
+  visible: boolean;
+  expanded: boolean;
+  tools: ToolCall[];
+  isExecuting: boolean;
+  onToggle: () => void;
+}> = ({ visible, expanded, tools, isExecuting, onToggle }) => {
+  if (!visible || tools.length === 0) return null;
 
-const directAnswer = `你好！我是智能助手小E，很高兴为您服务。
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'done':
+        return <span className="text-success-500">✅</span>;
+      case 'running':
+        return <Loader2 size={14} className="animate-spin text-primary-500" />;
+      case 'failed':
+        return <span className="text-danger-500">❌</span>;
+      default:
+        return null;
+    }
+  };
 
-我可以帮您：
-- 查询产品信息和价格
-- 了解退换货政策
-- 查询订单状态
-- 联系人工客服
+  // 执行中时始终展开，完成后可折叠
+  const showContent = isExecuting || expanded;
 
-请问有什么可以帮您的？`;
+  return (
+    <div className="border-b border-slate-100">
+      {isExecuting ? (
+        <div className="flex items-center justify-between px-4 py-2 text-sm font-medium text-slate-600">
+          <span>执行明细</span>
+          <ChevronUp size={14} className="text-slate-400" />
+        </div>
+      ) : (
+        <button
+          onClick={onToggle}
+          className="w-full flex items-center justify-between px-4 py-2 hover:bg-slate-50 transition-colors"
+        >
+          <span className="text-sm font-medium text-slate-600">执行明细</span>
+          {expanded ? (
+            <ChevronUp size={14} className="text-slate-400" />
+          ) : (
+            <ChevronDown size={14} className="text-slate-400" />
+          )}
+        </button>
+      )}
+      {showContent && (
+        <div className="px-4 pb-3 space-y-1">
+          {tools.map((tool) => (
+            <div key={tool.id}>
+              {/* 父级能力 */}
+              <div className="flex items-center gap-2 py-1">
+                <span className="text-sm">{tool.friendlyName}</span>
+                {getStatusIcon(tool.status)}
+              </div>
+              {/* 子级工具（嵌套） */}
+              {tool.children && tool.children.length > 0 && (
+                <div className="ml-4 border-l-2 border-slate-200 pl-3 space-y-1">
+                  {tool.children.map((child, index) => (
+                    <div key={child.id} className="flex items-center gap-2 py-1">
+                      <span className="text-slate-400 text-xs">
+                        {index === tool.children!.length - 1 ? '└─' : '├─'}
+                      </span>
+                      <span className="text-sm text-slate-600">{child.friendlyName}</span>
+                      {getStatusIcon(child.status)}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// 内容区组件
+const ContentArea: React.FC<{
+  visible: boolean;
+  content: string;
+  isStreaming: boolean;
+  knowledgeSources?: KnowledgeSource[];
+  showKnowledgeRef: boolean;
+  isPlayground: boolean;
+}> = ({ visible, content, isStreaming, knowledgeSources, showKnowledgeRef, isPlayground }) => {
+  const [knowledgeExpanded, setKnowledgeExpanded] = useState(false);
+
+  if (!visible) return null;
+
+  const hasKnowledge = knowledgeSources && knowledgeSources.length > 0 && showKnowledgeRef && isPlayground;
+
+  return (
+    <>
+      <div className="px-4 py-3">
+        <div className="whitespace-pre-wrap text-slate-700 text-sm leading-relaxed">
+          {content}
+          {isStreaming && <span className="typing-cursor">█</span>}
+        </div>
+      </div>
+
+      {/* 知识引用 */}
+      {hasKnowledge && !isStreaming && (
+        <div className="border-t border-slate-100">
+          <button
+            onClick={() => setKnowledgeExpanded(!knowledgeExpanded)}
+            className="w-full flex items-center justify-between px-4 py-2 hover:bg-slate-50"
+          >
+            <div className="flex items-center gap-2 text-sm text-slate-600">
+              <BookOpen size={14} />
+              <span>📚 引用了 {knowledgeSources!.length} 个知识源</span>
+            </div>
+            {knowledgeExpanded ? (
+              <ChevronUp size={14} className="text-slate-400" />
+            ) : (
+              <ChevronDown size={14} className="text-slate-400" />
+            )}
+          </button>
+          {knowledgeExpanded && (
+            <div className="px-4 pb-3 space-y-1">
+              {knowledgeSources!.map((source, index) => (
+                <div key={source.fileId} className="flex items-center gap-2 text-sm text-slate-500">
+                  <span>{index === knowledgeSources!.length - 1 ? '└─' : '├─'}</span>
+                  <span>{source.fileName}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </>
+  );
+};
+
+// 操作栏组件
+const ActionBar: React.FC<{
+  visible: boolean;
+  showRegenerate: boolean;
+  showAllActions: boolean;
+  isRetry?: boolean;
+  onRegenerate?: () => void;
+  onCopy: () => void;
+  onLike: () => void;
+  onDislike: () => void;
+  copied: boolean;
+  liked: boolean;
+  disliked: boolean;
+}> = ({
+  visible,
+  showRegenerate,
+  showAllActions,
+  isRetry,
+  onRegenerate,
+  onCopy,
+  onLike,
+  onDislike,
+  copied,
+  liked,
+  disliked,
+}) => {
+  if (!visible) return null;
+
+  return (
+    <div className="flex items-center gap-2 px-4 py-2 border-t border-slate-100">
+      {showRegenerate && (
+        <button
+          onClick={onRegenerate}
+          className="flex items-center gap-1 px-3 py-1.5 text-sm text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
+        >
+          <RefreshCw size={14} />
+          <span>{isRetry ? '重试' : '重新生成'}</span>
+        </button>
+      )}
+      {showAllActions && (
+        <>
+          <button
+            onClick={onRegenerate}
+            className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg"
+            title="重新生成"
+          >
+            <RefreshCw size={16} />
+          </button>
+          <button
+            onClick={onCopy}
+            className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg"
+            title="复制"
+          >
+            {copied ? <Check size={16} className="text-success-500" /> : <Copy size={16} />}
+          </button>
+          <button
+            onClick={onLike}
+            className={`p-2 rounded-lg ${
+              liked ? 'text-primary-500 bg-primary-50' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'
+            }`}
+            title="点赞"
+          >
+            <ThumbsUp size={16} />
+          </button>
+          <button
+            onClick={onDislike}
+            className={`p-2 rounded-lg ${
+              disliked ? 'text-danger-500 bg-danger-50' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'
+            }`}
+            title="点踩"
+          >
+            <ThumbsDown size={16} />
+          </button>
+        </>
+      )}
+    </div>
+  );
+};
+
+// ============================================
+// 主组件
+// ============================================
 
 export const AgentResponse: React.FC<AgentResponseProps> = ({
-  pageState,
+  stateConfig,
   features,
   isPlayground,
   onRegenerate,
+  isFirstBubbleInD = false,
+  isSecondBubbleInD = false,
 }) => {
+  const { scenario, messageState, taskProgress } = stateConfig;
+
+  // 状态
   const [copied, setCopied] = useState(false);
   const [liked, setLiked] = useState(false);
   const [disliked, setDisliked] = useState(false);
-  const [showKnowledgeExpanded, setShowKnowledgeExpanded] = useState(false);
-  const [stepsExpanded, setStepsExpanded] = useState(false);
+  const [callStackExpanded, setCallStackExpanded] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
   const [waitingTextIndex, setWaitingTextIndex] = useState(0);
 
   // 终端用户等待文字轮换
   useEffect(() => {
-    const isWaiting = !isPlayground && (
-      pageState === 'thinking' || 
-      pageState === 'executing-multi' || 
-      pageState === 'executing-single'
-    );
+    const isWaiting = !isPlayground && (messageState === 'thinking' || messageState === 'executing');
     if (isWaiting) {
       const interval = setInterval(() => {
         setWaitingTextIndex((prev) => (prev + 1) % waitingTexts.length);
       }, 2000);
       return () => clearInterval(interval);
     }
-  }, [isPlayground, pageState]);
+  }, [isPlayground, messageState]);
 
+  // 处理函数
   const handleCopy = () => {
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleLike = () => {
+    setLiked(true);
+    setDisliked(false);
   };
 
   const handleDislike = () => {
@@ -129,223 +514,282 @@ export const AgentResponse: React.FC<AgentResponseProps> = ({
     }
   };
 
-  // 判断场景类型
-  const isPlan = pageState.includes('multi');  // Plan 模式
-  const isSingle = pageState.includes('single');
-  const isDirect = pageState.includes('direct');
-  const isExecuting = pageState.startsWith('executing');
-  const isStreaming = pageState.startsWith('streaming');
-  const isComplete = pageState.startsWith('complete');
-  const hasSteps = isPlan || isSingle;
+  // ============================================
+  // 根据状态计算各层配置
+  // ============================================
 
-  // 获取执行步骤
-  const getSteps = (): ExecutionStep[] | null => {
-    if (isPlan) {
-      return isExecuting ? mockPlanExecutingSteps : mockPlanCompletedSteps;
+  // 状态栏配置
+  const getStatusBarConfig = () => {
+    // 完成状态：隐藏状态栏
+    if (messageState === 'complete') {
+      return { visible: false, text: '', type: 'thinking' as const };
     }
-    if (isSingle) {
-      return isExecuting ? mockSingleExecutingSteps : mockSingleCompletedSteps;
-    }
-    return null;
-  };
 
-  // 获取回答内容
-  const getAnswer = (): { content: string; isStreaming: boolean } | null => {
-    if (pageState === 'stopped') {
-      return null; // 停止时不显示内容
+    // 流式输出：隐藏状态栏（内容已在输出，无需状态提示）
+    if (messageState === 'streaming') {
+      return { visible: false, text: '', type: 'thinking' as const };
     }
-    if (isStreaming || isComplete) {
-      const streaming = isStreaming;
-      if (isPlan) {
-        return { content: streaming ? '根据分析，主要竞品有以下几家：\n\n1. 竞品A：市场份额约35%，主打性价比' : multiAnswer, isStreaming: streaming };
+
+    // 停止状态
+    if (messageState === 'stopped') {
+      return { visible: true, text: '回答已停止', type: 'stopped' as const };
+    }
+
+    // 失败状态
+    if (messageState === 'failed') {
+      return { visible: true, text: '出了点问题', type: 'failed' as const };
+    }
+
+    // 终端用户：显示友好提示（轮换文案）
+    if (!isPlayground && (messageState === 'thinking' || messageState === 'executing')) {
+      return { visible: true, text: waitingTexts[waitingTextIndex], type: 'thinking' as const };
+    }
+
+    // 执行中状态：根据调用栈最新工具展示对应文案
+    if (messageState === 'thinking' || messageState === 'executing') {
+      // 获取当前调用栈中正在执行的工具
+      let currentToolId: string | null = null;
+
+      if (scenario === 'B') {
+        const tools = messageState === 'executing' ? mockToolCalls_B_Running : [];
+        // 找到正在执行的子工具
+        for (const tool of tools) {
+          if (tool.children) {
+            const runningChild = tool.children.find(c => c.status === 'running');
+            if (runningChild) {
+              currentToolId = runningChild.toolId;
+              break;
+            }
+          }
+        }
+      } else if (scenario === 'C' || scenario === 'D') {
+        const tools = taskProgress ? mockToolCalls_C(taskProgress) : [];
+        // 找到正在执行的子工具
+        for (const tool of tools) {
+          if (tool.children) {
+            const runningChild = tool.children.find(c => c.status === 'running');
+            if (runningChild) {
+              currentToolId = runningChild.toolId;
+              break;
+            }
+          }
+        }
       }
-      if (isSingle) {
-        return { content: streaming ? '根据我们的政策：\n\n1. 7天内可无理由退换货\n2. 质量问题30天内可退换' : singleAnswer, isStreaming: streaming };
+
+      // 根据工具类型返回对应文案，无匹配则兜底"正在思考..."
+      const statusText = currentToolId ? (STATUS_TEXT_MAP[currentToolId] || '正在思考...') : '正在思考...';
+      return { visible: true, text: statusText, type: 'thinking' as const };
+    }
+
+    return { visible: false, text: '', type: 'thinking' as const };
+  };
+
+  // 调用栈配置
+  const getCallStackConfig = () => {
+    // 场景A：无调用栈
+    if (scenario === 'A') {
+      return { visible: false, expanded: false, tools: [] };
+    }
+
+    // 停止状态：隐藏调用栈
+    if (messageState === 'stopped') {
+      return { visible: false, expanded: false, tools: [] };
+    }
+
+    // 场景B：工具调用
+    if (scenario === 'B') {
+      const isExecuting = messageState === 'executing';
+      const tools = isExecuting ? mockToolCalls_B_Running : mockToolCalls_B;
+      return {
+        visible: messageState !== 'thinking',
+        expanded: isExecuting || callStackExpanded,
+        tools,
+      };
+    }
+
+    // 场景D气泡1：显示任务1-2的已完成调用栈
+    if (isFirstBubbleInD) {
+      return {
+        visible: true,
+        expanded: callStackExpanded,
+        tools: mockToolCalls_C('task2'), // 任务1-2已完成
+      };
+    }
+
+    // 场景D气泡2：显示任务3-4的调用栈
+    if (isSecondBubbleInD) {
+      const isExecuting = messageState === 'executing';
+      // 执行中显示任务3进度，完成显示任务4
+      const tools = isExecuting
+        ? mockToolCalls_C('task3')
+        : mockToolCalls_C('task4');
+      return {
+        visible: messageState !== 'thinking',
+        expanded: isExecuting || callStackExpanded,
+        tools,
+      };
+    }
+
+    // 场景C/D：任务规划
+    if (scenario === 'C' || scenario === 'D') {
+      const isExecuting = messageState === 'executing';
+      const tools = isExecuting && taskProgress
+        ? mockToolCalls_C(taskProgress)
+        : mockToolCalls_C('task4'); // 完成时显示所有
+      return {
+        visible: messageState !== 'thinking',
+        expanded: isExecuting || callStackExpanded,
+        tools,
+      };
+    }
+
+    return { visible: false, expanded: false, tools: [] };
+  };
+
+  // 内容区配置
+  const getContentAreaConfig = () => {
+    // 停止状态：不显示内容
+    if (messageState === 'stopped' || messageState === 'failed') {
+      return { visible: false, content: '', isStreaming: false };
+    }
+
+    // 思考中/执行中：无内容
+    if (messageState === 'thinking' || messageState === 'executing') {
+      return { visible: false, content: '', isStreaming: false };
+    }
+
+    // 场景D多轮对话：气泡1使用确认内容
+    if (isFirstBubbleInD) {
+      return { visible: true, content: ANSWERS.D_confirm, isStreaming: false };
+    }
+
+    // 场景D多轮对话：气泡2使用最终内容
+    if (isSecondBubbleInD) {
+      // 流式输出
+      if (messageState === 'streaming') {
+        return { visible: true, content: ANSWERS.D_final.substring(0, 50) + '...', isStreaming: true };
       }
-      if (isDirect) {
-        return { content: streaming ? '你好！我是智能助手小E，很高兴为您服务。\n\n我可以帮您：' : directAnswer, isStreaming: streaming };
+      // 完成
+      if (messageState === 'complete') {
+        return { visible: true, content: ANSWERS.D_final, isStreaming: false };
       }
     }
-    return null;
+
+    // 流式输出
+    if (messageState === 'streaming') {
+      const answer = ANSWERS[scenario as keyof typeof ANSWERS];
+      const content = typeof answer === 'object' ? answer.streaming : answer;
+      return { visible: true, content, isStreaming: true };
+    }
+
+    // 完成
+    if (messageState === 'complete') {
+      const answer = ANSWERS[scenario as keyof typeof ANSWERS];
+      const content = typeof answer === 'object' ? answer.full : answer;
+      return { visible: true, content, isStreaming: false };
+    }
+
+    return { visible: false, content: '', isStreaming: false };
   };
 
-  const steps = getSteps();
-  const answer = getAnswer();
-  const showActions = isComplete || pageState === 'stopped' || pageState === 'failed';
+  // 操作栏配置
+  const getActionBarConfig = () => {
+    // 场景D气泡1：只显示复制和反馈，不显示重新生成
+    if (isFirstBubbleInD) {
+      return {
+        visible: true,
+        showRegenerate: false,
+        showAllActions: true,
+        isRetry: false,
+      };
+    }
 
-  // 计算进度
-  const getProgress = () => {
-    if (!steps) return null;
-    const done = steps.filter(s => s.status === 'done').length;
-    return { done, total: steps.length };
+    const showRegenerate = messageState === 'stopped' || messageState === 'failed';
+    const showAllActions = messageState === 'complete';
+    const isRetry = messageState === 'failed';
+
+    return {
+      visible: showRegenerate || showAllActions,
+      showRegenerate,
+      showAllActions,
+      isRetry,
+    };
   };
 
-  const progress = getProgress();
+  const statusBarConfig = getStatusBarConfig();
+  const callStackConfig = getCallStackConfig();
+  const contentAreaConfig = getContentAreaConfig();
+  const actionBarConfig = getActionBarConfig();
 
-  // 获取执行中标题
-  const getExecutingTitle = () => {
-    if (isSingle) return '正在执行...';
-    if (isPlan && progress) return `正在执行 (${progress.done}/${progress.total})`;
-    return '正在处理...';
-  };
+  // 是否显示消息气泡
+  const showBubble = messageState !== 'thinking' || isPlayground;
 
   return (
     <div className="flex justify-start">
       <div className="flex items-start gap-2 max-w-[80%]">
-        {/* 单一头像 */}
+        {/* 头像 */}
         <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center text-sm flex-shrink-0">
           🤖
         </div>
 
-        <div className="space-y-2 flex-1">
-          {/* 正在思考状态 */}
-          {pageState === 'thinking' && (
+        <div className="space-y-2 flex-1 min-w-[300px]">
+          {/* 思考中状态（终端用户简化展示） */}
+          {messageState === 'thinking' && (
             <div className="bg-white border border-slate-200 px-4 py-3 rounded-eva-sm rounded-tl-sm shadow-sm">
               <div className="flex items-center gap-2 text-slate-600">
                 <Loader2 size={16} className="animate-spin text-primary-500" />
-                <span>{isPlayground ? '正在思考...' : waitingTexts[waitingTextIndex]}</span>
+                <span className="text-sm">
+                  {isPlayground ? '正在思考...' : waitingTexts[waitingTextIndex]}
+                </span>
               </div>
             </div>
           )}
 
-          {/* 终端用户等待状态 */}
-          {!isPlayground && isExecuting && (
-            <div className="bg-white border border-slate-200 px-4 py-3 rounded-eva-sm rounded-tl-sm shadow-sm">
-              <div className="flex items-center gap-2 text-slate-600">
-                <Loader2 size={16} className="animate-spin text-primary-500" />
-                <span>{waitingTexts[waitingTextIndex]}</span>
-              </div>
-            </div>
-          )}
+          {/* 主消息气泡（非思考中状态） */}
+          {messageState !== 'thinking' && (
+            <div className="bg-white border border-slate-200 rounded-eva-sm rounded-tl-sm shadow-sm overflow-hidden">
+              {/* 状态栏 */}
+              <StatusBar
+                visible={statusBarConfig.visible}
+                text={statusBarConfig.text}
+                type={statusBarConfig.type}
+              />
 
-          {/* Playground 执行过程（仅多能力/单能力场景） */}
-          {isPlayground && hasSteps && steps && (
-            <div className="bg-white border border-slate-200 rounded-eva-sm shadow-sm overflow-hidden min-w-[300px]">
-              {/* 标题栏 */}
-              {isExecuting ? (
-                <div className="px-4 py-3 border-b border-slate-100">
-                  <span className="text-sm font-medium text-slate-700">{getExecutingTitle()}</span>
-                </div>
-              ) : (
-                <button
-                  onClick={() => setStepsExpanded(!stepsExpanded)}
-                  className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50 transition-colors"
-                >
-                  <span className="text-sm font-medium text-slate-700">执行过程</span>
-                  {stepsExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                </button>
+              {/* 调用栈 */}
+              {isPlayground && (
+                <CallStack
+                  visible={callStackConfig.visible}
+                  expanded={callStackConfig.expanded}
+                  tools={callStackConfig.tools}
+                  isExecuting={messageState === 'executing'}
+                  onToggle={() => setCallStackExpanded(!callStackExpanded)}
+                />
               )}
 
-              {/* 步骤列表 */}
-              {(isExecuting || stepsExpanded) && (
-                <div className="px-4 py-2">
-                  {steps.map((step) => (
-                    <div key={step.id} className="py-1">
-                      <div className="flex items-center gap-2">
-                        <StepIcon status={step.status} />
-                        <span className={`text-sm ${step.status === 'pending' ? 'text-slate-400' : 'text-slate-600'}`}>
-                          {step.name}
-                        </span>
-                      </div>
-                      {step.subSteps?.map((sub) => (
-                        <div key={sub.id} className="flex items-center gap-2 ml-6 py-1">
-                          <SubStepIcon status={sub.status} name={sub.name} />
-                          <span className="text-xs text-slate-500">{sub.name}</span>
-                        </div>
-                      ))}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+              {/* 内容区 */}
+              <ContentArea
+                visible={contentAreaConfig.visible}
+                content={contentAreaConfig.content}
+                isStreaming={contentAreaConfig.isStreaming}
+                knowledgeSources={mockKnowledgeSources}
+                showKnowledgeRef={features.showKnowledgeRef}
+                isPlayground={isPlayground}
+              />
 
-          {/* 回答内容 */}
-          {answer && (
-            <div className="bg-white border border-slate-200 px-4 py-3 rounded-eva-sm rounded-tl-sm shadow-sm">
-              <div className="whitespace-pre-wrap text-slate-700">
-                {answer.content}
-                {answer.isStreaming && <span className="typing-cursor">█</span>}
-              </div>
-            </div>
-          )}
-
-          {/* 已停止状态 */}
-          {pageState === 'stopped' && (
-            <div className="bg-white border border-slate-200 px-4 py-3 rounded-eva-sm rounded-tl-sm shadow-sm">
-              <span className="text-slate-400">回答已停止</span>
-            </div>
-          )}
-
-          {/* 失败状态 */}
-          {pageState === 'failed' && (
-            <div className="bg-white border border-slate-200 px-4 py-3 rounded-eva-sm rounded-tl-sm shadow-sm">
-              <div className="flex items-center gap-2 text-danger-500">
-                <AlertTriangle size={16} />
-                <span>抱歉，回答生成失败，请重试</span>
-              </div>
-            </div>
-          )}
-
-          {/* 知识引用 (仅 Playground 完成态，且有能力调用) */}
-          {isPlayground && features.showKnowledgeRef && isComplete && hasSteps && (
-            <div className="bg-white border border-slate-200 rounded-eva-sm overflow-hidden">
-              <button
-                onClick={() => setShowKnowledgeExpanded(!showKnowledgeExpanded)}
-                className="w-full flex items-center justify-between px-4 py-2 hover:bg-slate-50"
-              >
-                <div className="flex items-center gap-2 text-sm text-slate-600">
-                  <BookOpen size={14} />
-                  <span>引用了 {mockKnowledgeSources.length} 条知识</span>
-                </div>
-                {showKnowledgeExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-              </button>
-              {showKnowledgeExpanded && (
-                <div className="border-t border-slate-100 px-4 py-2">
-                  {mockKnowledgeSources.map((source) => (
-                    <div key={source.fileId} className="py-1.5 text-sm text-slate-600">
-                      {source.fileName}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* 操作按钮 */}
-          {showActions && (
-            <div className="flex items-center gap-2">
-              {(pageState === 'stopped' || pageState === 'failed') && (
-                <button
-                  onClick={onRegenerate}
-                  className="flex items-center gap-1 px-3 py-1.5 text-sm text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
-                >
-                  <RefreshCw size={14} />
-                  <span>{pageState === 'failed' ? '重试' : '重新生成'}</span>
-                </button>
-              )}
-              {isComplete && (
-                <>
-                  <button onClick={onRegenerate} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg">
-                    <RefreshCw size={16} />
-                  </button>
-                  <button onClick={handleCopy} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg">
-                    {copied ? <Check size={16} className="text-success-500" /> : <Copy size={16} />}
-                  </button>
-                  <button
-                    onClick={() => { setLiked(true); setDisliked(false); }}
-                    className={`p-2 rounded-lg ${liked ? 'text-primary-500 bg-primary-50' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'}`}
-                  >
-                    <ThumbsUp size={16} />
-                  </button>
-                  <button
-                    onClick={handleDislike}
-                    className={`p-2 rounded-lg ${disliked ? 'text-danger-500 bg-danger-50' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'}`}
-                  >
-                    <ThumbsDown size={16} />
-                  </button>
-                </>
-              )}
+              {/* 操作栏 */}
+              <ActionBar
+                visible={actionBarConfig.visible}
+                showRegenerate={actionBarConfig.showRegenerate}
+                showAllActions={actionBarConfig.showAllActions}
+                isRetry={actionBarConfig.isRetry}
+                onRegenerate={onRegenerate}
+                onCopy={handleCopy}
+                onLike={handleLike}
+                onDislike={handleDislike}
+                copied={copied}
+                liked={liked}
+                disliked={disliked}
+              />
             </div>
           )}
 
@@ -361,34 +805,4 @@ export const AgentResponse: React.FC<AgentResponseProps> = ({
       </div>
     </div>
   );
-};
-
-// 步骤图标组件
-const StepIcon: React.FC<{ status: 'done' | 'running' | 'pending' }> = ({ status }) => {
-  switch (status) {
-    case 'done':
-      return <div className="w-4 h-4 rounded-full bg-success-500 flex items-center justify-center"><Check size={10} className="text-white" /></div>;
-    case 'running':
-      return <Loader2 size={16} className="text-primary-500 animate-spin" />;
-    case 'pending':
-      return <Clock size={16} className="text-slate-300" />;
-  }
-};
-
-// 子步骤图标组件
-const SubStepIcon: React.FC<{ status: 'done' | 'running' | 'pending'; name: string }> = ({ status, name }) => {
-  if (name.includes('查阅') || name.includes('知识')) {
-    return <BookOpen size={12} className="text-primary-400" />;
-  }
-  if (name.includes('分析')) {
-    return <Zap size={12} className={status === 'running' ? 'text-warning-500' : 'text-primary-400'} />;
-  }
-  switch (status) {
-    case 'done':
-      return <Check size={12} className="text-success-500" />;
-    case 'running':
-      return <Zap size={12} className="text-warning-500" />;
-    case 'pending':
-      return <Clock size={12} className="text-slate-300" />;
-  }
 };

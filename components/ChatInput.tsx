@@ -5,10 +5,10 @@
 
 import React, { useState, useRef, useCallback } from 'react';
 import { Send, Square, Paperclip, X } from 'lucide-react';
-import { PageState, Attachment, AttachmentType, SUPPORTED_IMAGE_TYPES, SUPPORTED_DOC_TYPES, MAX_IMAGE_SIZE, MAX_DOC_SIZE, MAX_ATTACHMENTS } from '../types';
+import { PageStateConfig, Attachment, AttachmentType, SUPPORTED_IMAGE_TYPES, SUPPORTED_DOC_TYPES, MAX_IMAGE_SIZE, MAX_DOC_SIZE, MAX_ATTACHMENTS } from '../types';
 
 interface ChatInputProps {
-  pageState: PageState;
+  stateConfig: PageStateConfig;
   onSend: (message: string, attachments?: Attachment[]) => void;
   onStop: () => void;
 }
@@ -65,7 +65,7 @@ const getFileIconText = (name: string): string => {
   return ext.slice(0, 2).toUpperCase() || 'F';
 };
 
-export const ChatInput: React.FC<ChatInputProps> = ({ pageState, onSend, onStop }) => {
+export const ChatInput: React.FC<ChatInputProps> = ({ stateConfig, onSend, onStop }) => {
   const [message, setMessage] = useState('');
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -73,35 +73,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({ pageState, onSend, onStop 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const isGenerating = pageState.startsWith('executing') || 
-                       pageState.startsWith('streaming') || 
-                       pageState === 'thinking';
-
-  // 当切换到 with-attachment 状态时，添加预置附件
-  React.useEffect(() => {
-    if (pageState === 'with-attachment') {
-      setAttachments([
-        {
-          id: 'demo-1',
-          type: 'document',
-          name: '产品说明书_v2.1_最终版.pdf',
-          size: 2.5 * 1024 * 1024,
-          status: 'success',
-          url: '#',
-        },
-        {
-          id: 'demo-2',
-          type: 'image',
-          name: '产品截图.png',
-          size: 856 * 1024,
-          status: 'success',
-          url: '#',
-          previewUrl: 'https://picsum.photos/200/200?random=1',
-        },
-      ]);
-      setMessage('请帮我分析这个产品文档');
-    }
-  }, [pageState]);
+  const { messageState } = stateConfig;
+  const isGenerating = messageState === 'thinking' ||
+                       messageState === 'executing' ||
+                       messageState === 'streaming';
 
   // 显示 Toast 提示
   const showToast = useCallback((msg: string) => {
@@ -259,8 +234,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({ pageState, onSend, onStop 
                   !attachments.some(a => a.status === 'uploading');
 
   return (
-    <div 
-      className={`border-t border-slate-200 bg-white relative ${isDragging ? 'ring-2 ring-primary-500 ring-inset' : ''}`}
+    <div
+      className={`border-t border-slate-200 bg-white relative flex-shrink-0 ${isDragging ? 'ring-2 ring-primary-500 ring-inset' : ''}`}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}

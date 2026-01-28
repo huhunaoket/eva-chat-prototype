@@ -1,19 +1,22 @@
 /**
  * 聊天消息区域组件
+ * 对齐 PRD v3 3.3 过程态展示模块
  */
 
 import React, { useState } from 'react';
-import { PageState, FeatureOptions, Attachment } from '../types';
+import { PageStateConfig, FeatureOptions, Attachment, Scenario } from '../types';
 import { AgentResponse } from './AgentResponse';
+import { TaskList } from './TaskList';
 import { AttachmentCard } from './ChatInput';
 import { X, ZoomIn, ZoomOut, Download } from 'lucide-react';
 
 interface ChatAreaProps {
-  pageState: PageState;
+  stateConfig: PageStateConfig;
   features: FeatureOptions;
   isPlayground: boolean;
-  onPageStateChange?: (state: PageState) => void;
+  onStateConfigChange?: (config: PageStateConfig) => void;
   hideWelcomeQuestions?: boolean;
+  isEmptySession?: boolean;
 }
 
 // 推荐问题
@@ -23,7 +26,7 @@ const suggestedQuestions = [
   '如何联系人工客服？',
 ];
 
-// 模拟附件数据
+// 模拟附件数据（场景B使用）
 const mockAttachments: Attachment[] = [
   {
     id: '1',
@@ -36,82 +39,124 @@ const mockAttachments: Attachment[] = [
   },
 ];
 
-const mockMultiAttachments: Attachment[] = [
-  {
-    id: '1',
-    type: 'image',
-    name: 'pasted-image-1769154448206-hru4q1.png',
-    size: 1024 * 17.86,
-    status: 'success',
-    previewUrl: 'https://picsum.photos/100/100?random=2',
-    url: 'https://picsum.photos/800/600?random=2',
-  },
-  {
-    id: '2',
-    type: 'document',
-    name: 'FDE 数字员工系统设计文档.docx',
-    size: 1024 * 8.02,
-    status: 'success',
-    url: '#',
-  },
-];
+export const ChatArea: React.FC<ChatAreaProps> = ({
+  stateConfig,
+  features,
+  isPlayground,
+  onStateConfigChange,
+  hideWelcomeQuestions = false,
+  isEmptySession = false,
+}) => {
+  const { scenario, messageState } = stateConfig;
 
-export const ChatArea: React.FC<ChatAreaProps> = ({ pageState, features, isPlayground, onPageStateChange, hideWelcomeQuestions = false }) => {
   const handleRegenerate = () => {
-    if (onPageStateChange) {
-      onPageStateChange('streaming-multi');
+    if (onStateConfigChange) {
+      onStateConfigChange({
+        ...stateConfig,
+        messageState: 'streaming',
+      });
     }
   };
 
-  // 空状态（欢迎页）- 简化版
-  if (pageState === 'empty') {
-    return (
-      <div className="flex-1 flex flex-col items-center justify-center p-8">
-        <p className="text-lg text-slate-600 mb-8">很高兴为您服务，请问有什么可以帮您？</p>
-        {!hideWelcomeQuestions && (
-          <div className="flex flex-wrap justify-center gap-3 max-w-2xl">
-            {suggestedQuestions.map((q, i) => (
-              <button
-                key={i}
-                onClick={() => onPageStateChange?.('complete-single')}
-                className="px-4 py-2.5 bg-white border border-slate-200 rounded-full text-sm text-slate-600 hover:border-primary-300 hover:bg-primary-50 transition-colors"
-              >
-                {q}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  }
+  const handleSendQuestion = (question: string) => {
+    if (onStateConfigChange) {
+      onStateConfigChange({
+        ...stateConfig,
+        messageState: 'thinking',
+      });
+    }
+  };
 
-  // 根据状态获取用户问题和附件
+  // 空状态（欢迎页）- 当是空会话时显示
+  const isEmptyState = isEmptySession;
+
+  // 根据场景获取用户问题和附件
   const getUserContent = (): { text: string; attachments?: Attachment[] } => {
-    if (pageState.includes('direct')) return { text: '你好' };
-    if (pageState.includes('single')) return { 
-      text: '请问退换货政策是什么？',
-      attachments: mockAttachments 
-    };
-    return { 
-      text: '你是怎么处理我上传的这些图片和文件的',
-      attachments: mockMultiAttachments 
-    };
+    switch (scenario) {
+      case 'A':
+        return { text: '你好' };
+      case 'B':
+        return {
+          text: '请问退换货政策是什么？',
+          attachments: mockAttachments
+        };
+      case 'C':
+      case 'D':
+        return { text: '帮我做一份竞品分析报告' };
+      default:
+        return { text: '你好' };
+    }
   };
 
   const userContent = getUserContent();
 
-  return (
-    <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide">
-      {/* 用户消息 */}
-      <UserMessage content={userContent.text} attachments={userContent.attachments} />
+  // 场景D：多轮对话展示
+  const isScenarioD = scenario === 'D';
+  const showScenarioDMultiTurn = isScenarioD && (messageState === 'executing' || messageState === 'streaming' || messageState === 'complete' || messageState === 'stopped');
 
-      {/* Agent 响应 */}
-      <AgentResponse
-        pageState={pageState}
-        features={features}
-        isPlayground={isPlayground}
-        onRegenerate={handleRegenerate}
-      />
+  return (
+    <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+      {/* 消息列表区域 - 可滚动 */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide min-h-0">
+        {/* 空会话欢迎页 */}
+        {isEmptyState ? (
+          <WelcomePage
+            hideQuestions={hideWelcomeQuestions}
+            onSendQuestion={handleSendQuestion}
+          />
+        ) : (
+          <>
+            {/* 用户消息 */}
+            <UserMessage content={userContent.text} attachments={userContent.attachments} />
+
+            {/* 场景D多轮对话：气泡1 + 用户确认 + 气泡2 */}
+            {showScenarioDMultiTurn ? (
+              <>
+                {/* 气泡1：Agent 请求确认（已完成态） */}
+                <AgentResponse
+                  stateConfig={{
+                    scenario: 'D',
+                    messageState: 'complete',
+                    taskProgress: 'task2',
+                  }}
+                  features={features}
+                  isPlayground={isPlayground}
+                  onRegenerate={handleRegenerate}
+                  isFirstBubbleInD={true}
+                />
+
+                {/* 用户确认回复 */}
+                <UserMessage content="继续" />
+
+                {/* 气泡2：Agent 继续执行 */}
+                <AgentResponse
+                  stateConfig={stateConfig}
+                  features={features}
+                  isPlayground={isPlayground}
+                  onRegenerate={handleRegenerate}
+                  isSecondBubbleInD={true}
+                />
+              </>
+            ) : (
+              /* 其他场景：单气泡 */
+              <AgentResponse
+                stateConfig={stateConfig}
+                features={features}
+                isPlayground={isPlayground}
+                onRegenerate={handleRegenerate}
+              />
+            )}
+          </>
+        )}
+      </div>
+
+      {/* 任务列表区域（场景C/D，位于输入框上方，固定不滚动） */}
+      <div className="flex-shrink-0">
+        <TaskList
+          stateConfig={stateConfig}
+          isPlayground={isPlayground}
+        />
+      </div>
     </div>
   );
 };
@@ -178,6 +223,41 @@ interface ImageViewerProps {
   src: string;
   onClose: () => void;
 }
+
+// 欢迎页组件
+interface WelcomePageProps {
+  hideQuestions?: boolean;
+  onSendQuestion?: (question: string) => void;
+}
+
+const WelcomePage: React.FC<WelcomePageProps> = ({ hideQuestions = false, onSendQuestion }) => {
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center text-center px-8 py-12">
+      {/* Agent 头像 */}
+      <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center text-3xl mb-6 shadow-lg">
+        🤖
+      </div>
+      {/* 开场白 */}
+      <h2 className="text-xl font-semibold text-slate-800 mb-2">你好，我是智能助手</h2>
+      <p className="text-slate-500 mb-8">很高兴为您服务！</p>
+      {/* 推荐问题（Playground显示，终端用户隐藏） */}
+      {!hideQuestions && (
+        <div className="w-full max-w-md space-y-3">
+          {suggestedQuestions.map((question, index) => (
+            <button
+              key={index}
+              onClick={() => onSendQuestion?.(question)}
+              className="w-full flex items-center gap-3 px-4 py-3 bg-white border border-slate-200 rounded-xl text-left text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-colors shadow-sm"
+            >
+              <span className="text-primary-500">🔹</span>
+              <span>{question}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
 
 const ImageViewer: React.FC<ImageViewerProps> = ({ src, onClose }) => {
   const [zoom, setZoom] = useState(100);

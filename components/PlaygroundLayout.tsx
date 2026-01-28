@@ -4,7 +4,7 @@
 
 import React, { useState } from 'react';
 import { Plus, History, LogOut } from 'lucide-react';
-import { PageState, FeatureOptions, Attachment } from '../types';
+import { PageStateConfig, FeatureOptions, Attachment } from '../types';
 import { ChatArea } from './ChatArea';
 import { ChatInput } from './ChatInput';
 import { ChatHistory } from './ChatHistory';
@@ -14,19 +14,19 @@ import { SecurityCenter } from './dashboard/SecurityCenter';
 import { Modal } from './dashboard/Modal';
 
 interface PlaygroundLayoutProps {
-  pageState: PageState;
+  stateConfig: PageStateConfig;
   features: FeatureOptions;
-  onPageStateChange: (state: PageState) => void;
+  onStateConfigChange: (config: PageStateConfig) => void;
 }
 
 export const PlaygroundLayout: React.FC<PlaygroundLayoutProps> = ({
-  pageState,
+  stateConfig,
   features,
-  onPageStateChange,
+  onStateConfigChange,
 }) => {
   const [showHistory, setShowHistory] = useState(features.showHistory);
   const [currentView, setCurrentView] = useState<DashboardView>('playground');
-  
+
   // Modal States
   const [showProfile, setShowProfile] = useState(false);
   const [showCompany, setShowCompany] = useState(false);
@@ -43,15 +43,24 @@ export const PlaygroundLayout: React.FC<PlaygroundLayoutProps> = ({
 
   const handleSend = (message: string, attachments?: Attachment[]) => {
     console.log('发送消息:', message, '附件:', attachments);
-    onPageStateChange('thinking');
+    onStateConfigChange({
+      ...stateConfig,
+      messageState: 'thinking',
+    });
   };
 
   const handleStop = () => {
-    onPageStateChange('stopped');
+    onStateConfigChange({
+      ...stateConfig,
+      messageState: 'stopped',
+    });
   };
 
   const handleNewChat = () => {
-    onPageStateChange('empty');
+    onStateConfigChange({
+      scenario: 'A',
+      messageState: 'complete',
+    });
   };
 
   const renderContent = () => {
@@ -65,9 +74,9 @@ export const PlaygroundLayout: React.FC<PlaygroundLayoutProps> = ({
         );
       case 'playground':
         return (
-          <div className="flex-1 flex flex-col">
+          <div className="flex-1 flex flex-col overflow-hidden">
             {/* 顶部栏 */}
-            <div className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-6">
+            <div className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-6 flex-shrink-0">
               <h1 className="font-medium text-slate-800">新对话</h1>
               <div className="flex items-center gap-2">
                 <button
@@ -88,18 +97,18 @@ export const PlaygroundLayout: React.FC<PlaygroundLayoutProps> = ({
             </div>
 
             {/* 聊天区域 */}
-            <div className="flex-1 flex flex-col bg-slate-50">
-              <div className="flex-1 flex flex-col max-w-4xl mx-auto w-full">
-                <ChatArea 
-                  pageState={pageState} 
-                  features={features} 
+            <div className="flex-1 flex flex-col bg-slate-50 overflow-hidden min-h-0">
+              <div className="flex-1 flex flex-col max-w-4xl mx-auto w-full min-h-0 overflow-hidden">
+                <ChatArea
+                  stateConfig={stateConfig}
+                  features={features}
                   isPlayground={true}
-                  onPageStateChange={onPageStateChange}
+                  onStateConfigChange={onStateConfigChange}
                 />
-                <ChatInput 
-                  pageState={pageState} 
-                  onSend={handleSend} 
-                  onStop={handleStop} 
+                <ChatInput
+                  stateConfig={stateConfig}
+                  onSend={handleSend}
+                  onStop={handleStop}
                 />
               </div>
             </div>
@@ -110,7 +119,10 @@ export const PlaygroundLayout: React.FC<PlaygroundLayoutProps> = ({
               onClose={() => setShowHistory(false)}
               onSelectSession={() => {
                 setShowHistory(false);
-                onPageStateChange('complete-direct');
+                onStateConfigChange({
+                  scenario: 'A',
+                  messageState: 'complete',
+                });
               }}
               onDeleteSession={() => {}}
             />

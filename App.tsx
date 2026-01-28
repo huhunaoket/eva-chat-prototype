@@ -1,9 +1,10 @@
 /**
  * EVA 对话页原型演示 - 主应用
+ * 对齐 PRD v3 3.3.2 场景交互详解
  */
 
 import React, { useState } from 'react';
-import { ViewMode, PageState, FeatureOptions } from './types';
+import { ViewMode, PageStateConfig, FeatureOptions } from './types';
 import { StateSwitcher } from './components/StateSwitcher';
 import { PlaygroundLayout } from './components/PlaygroundLayout';
 import { StandaloneLayout } from './components/StandaloneLayout';
@@ -11,7 +12,10 @@ import { WidgetLayout } from './components/WidgetLayout';
 
 export default function App() {
   const [viewMode, setViewMode] = useState<ViewMode>('playground');
-  const [pageState, setPageState] = useState<PageState>('empty');
+  const [stateConfig, setStateConfig] = useState<PageStateConfig>({
+    scenario: 'A',
+    messageState: 'complete',
+  });
   const [features, setFeatures] = useState<FeatureOptions>({
     showKnowledgeRef: false,
     showFeedbackPanel: false,
@@ -24,8 +28,8 @@ export default function App() {
       <StateSwitcher
         viewMode={viewMode}
         onViewModeChange={setViewMode}
-        pageState={pageState}
-        onPageStateChange={setPageState}
+        stateConfig={stateConfig}
+        onStateConfigChange={setStateConfig}
         features={features}
         onFeaturesChange={setFeatures}
       />
@@ -36,24 +40,24 @@ export default function App() {
       {/* 页面内容 */}
       <div className="flex-1 flex flex-col relative z-10">
         {viewMode === 'playground' && (
-          <PlaygroundLayout 
-            pageState={pageState} 
+          <PlaygroundLayout
+            stateConfig={stateConfig}
             features={features}
-            onPageStateChange={setPageState}
+            onStateConfigChange={setStateConfig}
           />
         )}
         {viewMode === 'standalone' && (
-          <StandaloneLayout 
-            pageState={pageState} 
+          <StandaloneLayout
+            stateConfig={stateConfig}
             features={features}
-            onPageStateChange={setPageState}
+            onStateConfigChange={setStateConfig}
           />
         )}
         {viewMode === 'widget' && (
-          <WidgetLayout 
-            pageState={pageState} 
+          <WidgetLayout
+            stateConfig={stateConfig}
             features={features}
-            onPageStateChange={setPageState}
+            onStateConfigChange={setStateConfig}
           />
         )}
       </div>

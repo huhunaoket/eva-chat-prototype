@@ -5,14 +5,14 @@
 
 import React, { useState } from 'react';
 import { Plus, MessageSquare, Trash2, Menu, X } from 'lucide-react';
-import { PageState, FeatureOptions, Attachment, ChatSession } from '../types';
+import { PageStateConfig, FeatureOptions, Attachment, ChatSession } from '../types';
 import { ChatArea } from './ChatArea';
 import { ChatInput } from './ChatInput';
 
 interface StandaloneLayoutProps {
-  pageState: PageState;
+  stateConfig: PageStateConfig;
   features: FeatureOptions;
-  onPageStateChange: (state: PageState) => void;
+  onStateConfigChange: (config: PageStateConfig) => void;
 }
 
 // 模拟会话历史数据
@@ -24,31 +24,50 @@ const mockSessions: ChatSession[] = [
 ];
 
 export const StandaloneLayout: React.FC<StandaloneLayoutProps> = ({
-  pageState,
+  stateConfig,
   features,
-  onPageStateChange,
+  onStateConfigChange,
 }) => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [sessions] = useState<ChatSession[]>(mockSessions);
 
+  // 终端用户需要看到反馈面板，但隐藏知识引用
+  const endUserFeatures: FeatureOptions = {
+    ...features,
+    showFeedbackPanel: true,
+    showKnowledgeRef: false,
+  };
+
   const handleSend = (message: string, attachments?: Attachment[]) => {
     console.log('发送消息:', message, '附件:', attachments);
-    onPageStateChange('thinking');
+    onStateConfigChange({
+      ...stateConfig,
+      messageState: 'thinking',
+    });
   };
 
   const handleStop = () => {
-    onPageStateChange('stopped');
+    onStateConfigChange({
+      ...stateConfig,
+      messageState: 'stopped',
+    });
   };
 
   const handleNewChat = () => {
     setActiveSessionId(null);
-    onPageStateChange('empty');
+    onStateConfigChange({
+      scenario: 'A',
+      messageState: 'complete',
+    });
   };
 
   const handleSelectSession = (id: string) => {
     setActiveSessionId(id);
-    onPageStateChange('complete-single');
+    onStateConfigChange({
+      scenario: 'A',
+      messageState: 'complete',
+    });
   };
 
   // 按日期分组
@@ -116,18 +135,19 @@ export const StandaloneLayout: React.FC<StandaloneLayoutProps> = ({
         </div>
 
         {/* 聊天区域 */}
-        <div className="flex-1 flex flex-col max-w-3xl mx-auto w-full">
-          <ChatArea 
-            pageState={pageState} 
-            features={features} 
+        <div className="flex-1 flex flex-col max-w-3xl mx-auto w-full min-h-0 overflow-hidden">
+          <ChatArea
+            stateConfig={stateConfig}
+            features={endUserFeatures}
             isPlayground={false}
-            onPageStateChange={onPageStateChange}
+            onStateConfigChange={onStateConfigChange}
             hideWelcomeQuestions={true}
+            isEmptySession={activeSessionId === null}
           />
-          <ChatInput 
-            pageState={pageState} 
-            onSend={handleSend} 
-            onStop={handleStop} 
+          <ChatInput
+            stateConfig={stateConfig}
+            onSend={handleSend}
+            onStop={handleStop}
           />
         </div>
 

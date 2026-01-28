@@ -1,16 +1,17 @@
 /**
  * 原型状态切换器 - 可拖拽悬浮控制面板
+ * 对齐 PRD v3 3.3.2 场景交互详解
  */
 
 import React, { useState, useRef, useEffect } from 'react';
 import { ChevronDown, ChevronUp, Settings, GripVertical } from 'lucide-react';
-import { ViewMode, PageState, FeatureOptions } from '../types';
+import { ViewMode, Scenario, MessageState, TaskProgress, PageStateConfig, FeatureOptions } from '../types';
 
 interface StateSwitcherProps {
   viewMode: ViewMode;
   onViewModeChange: (mode: ViewMode) => void;
-  pageState: PageState;
-  onPageStateChange: (state: PageState) => void;
+  stateConfig: PageStateConfig;
+  onStateConfigChange: (config: PageStateConfig) => void;
   features: FeatureOptions;
   onFeaturesChange: (features: FeatureOptions) => void;
 }
@@ -21,27 +22,55 @@ const viewModeOptions: { value: ViewMode; label: string }[] = [
   { value: 'widget', label: '终端用户（Widget）' },
 ];
 
-const pageStateOptions: { value: PageState; label: string; group: string }[] = [
-  { value: 'empty', label: '空状态（欢迎页）', group: '基础' },
-  { value: 'with-attachment', label: '输入栏文件上传', group: '基础' },
-  { value: 'thinking', label: '正在思考', group: '基础' },
-  { value: 'failed', label: '生成失败', group: '基础' },
-  { value: 'stopped', label: '已停止', group: '基础' },
-  { value: 'streaming-direct', label: '流式输出（直接回答）', group: '直接回答' },
-  { value: 'complete-direct', label: '完成（直接回答）', group: '直接回答' },
-  { value: 'executing-single', label: '执行中（单能力）', group: '单能力' },
-  { value: 'streaming-single', label: '流式输出（单能力）', group: '单能力' },
-  { value: 'complete-single', label: '完成（单能力）', group: '单能力' },
-  { value: 'executing-multi', label: '执行中（Plan）', group: 'Plan 模式' },
-  { value: 'streaming-multi', label: '流式输出（Plan）', group: 'Plan 模式' },
-  { value: 'complete-multi', label: '完成（Plan）', group: 'Plan 模式' },
+// 场景定义（对齐 PRD v3）
+const scenarioOptions: { value: Scenario; label: string; description: string }[] = [
+  { value: 'A', label: '场景A：直接回答', description: '无工具调用、无任务规划' },
+  { value: 'B', label: '场景B：工具调用', description: '有调用栈，无任务列表' },
+  { value: 'C', label: '场景C：任务规划（无确认）', description: '有任务列表，一次完成' },
+  { value: 'D', label: '场景D：任务规划（有确认）', description: '多轮对话' },
 ];
+
+// 消息状态定义
+const messageStateOptions: { value: MessageState; label: string }[] = [
+  { value: 'thinking', label: '思考中' },
+  { value: 'executing', label: '执行中' },
+  { value: 'streaming', label: '流式输出' },
+  { value: 'complete', label: '完成' },
+  { value: 'stopped', label: '已停止' },
+  { value: 'failed', label: '失败' },
+];
+
+// 任务进度定义（场景C/D）
+const taskProgressOptions: { value: TaskProgress; label: string }[] = [
+  { value: 'task1', label: '任务1执行中' },
+  { value: 'task2', label: '任务2执行中' },
+  { value: 'task3', label: '任务3执行中' },
+  { value: 'task4', label: '任务4执行中' },
+];
+
+// 根据场景过滤可用的消息状态
+const getAvailableStates = (scenario: Scenario): MessageState[] => {
+  switch (scenario) {
+    case 'A':
+      // 直接回答：思考中 → 流式输出 → 完成/停止/失败
+      return ['thinking', 'streaming', 'complete', 'stopped', 'failed'];
+    case 'B':
+      // 工具调用：思考中 → 执行中 → 流式输出 → 完成/停止/失败
+      return ['thinking', 'executing', 'streaming', 'complete', 'stopped', 'failed'];
+    case 'C':
+    case 'D':
+      // 任务规划：思考中 → 执行中 → 流式输出 → 完成/停止/失败
+      return ['thinking', 'executing', 'streaming', 'complete', 'stopped', 'failed'];
+    default:
+      return ['thinking', 'executing', 'streaming', 'complete', 'stopped', 'failed'];
+  }
+};
 
 export const StateSwitcher: React.FC<StateSwitcherProps> = ({
   viewMode,
   onViewModeChange,
-  pageState,
-  onPageStateChange,
+  stateConfig,
+  onStateConfigChange,
   features,
   onFeaturesChange,
 }) => {
@@ -52,6 +81,34 @@ export const StateSwitcher: React.FC<StateSwitcherProps> = ({
 
   const toggleFeature = (key: keyof FeatureOptions) => {
     onFeaturesChange({ ...features, [key]: !features[key] });
+  };
+
+  const handleScenarioChange = (scenario: Scenario) => {
+    // 切换场景时重置状态
+    const availableStates = getAvailableStates(scenario);
+    const newState: MessageState = availableStates.includes(stateConfig.messageState)
+      ? stateConfig.messageState
+      : 'thinking';
+
+    onStateConfigChange({
+      scenario,
+      messageState: newState,
+      taskProgress: (scenario === 'C' || scenario === 'D') ? 'task1' : undefined,
+    });
+  };
+
+  const handleMessageStateChange = (messageState: MessageState) => {
+    onStateConfigChange({
+      ...stateConfig,
+      messageState,
+    });
+  };
+
+  const handleTaskProgressChange = (taskProgress: TaskProgress) => {
+    onStateConfigChange({
+      ...stateConfig,
+      taskProgress,
+    });
   };
 
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -95,15 +152,16 @@ export const StateSwitcher: React.FC<StateSwitcherProps> = ({
     };
   }, [isDragging]);
 
-  // 按组分类
-  const groups = ['基础', '直接回答', '单能力', 'Plan 模式'];
+  const availableStates = getAvailableStates(stateConfig.scenario);
+  const showTaskProgress = (stateConfig.scenario === 'C' || stateConfig.scenario === 'D')
+    && stateConfig.messageState === 'executing';
 
   return (
     <div
       className="fixed z-[100]"
       style={{ right: position.x, top: position.y, cursor: isDragging ? 'grabbing' : 'default' }}
     >
-      <div className="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden w-[280px]">
+      <div className="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden w-[320px]">
         <div className="flex items-center border-b border-slate-100">
           <div
             onMouseDown={handleMouseDown}
@@ -118,14 +176,15 @@ export const StateSwitcher: React.FC<StateSwitcherProps> = ({
           >
             <div className="flex items-center gap-2">
               <Settings size={16} className="text-slate-400" />
-              <span className="text-sm font-medium text-slate-700">原型状态切换</span>
+              <span className="text-sm font-medium text-slate-700">场景状态切换</span>
             </div>
             {isExpanded ? <ChevronUp size={16} className="text-slate-400" /> : <ChevronDown size={16} className="text-slate-400" />}
           </button>
         </div>
 
         {isExpanded && (
-          <div className="p-4 space-y-4 max-h-[70vh] overflow-y-auto scrollbar-hide">
+          <div className="p-4 space-y-4 max-h-[75vh] overflow-y-auto scrollbar-hide">
+            {/* 视角切换 */}
             <div>
               <div className="text-xs font-medium text-slate-500 mb-2">视角</div>
               <div className="space-y-1">
@@ -144,46 +203,122 @@ export const StateSwitcher: React.FC<StateSwitcherProps> = ({
               </div>
             </div>
 
+            {/* 场景选择 */}
             <div>
-              <div className="text-xs font-medium text-slate-500 mb-2">页面状态</div>
-              <div className="space-y-3">
-                {groups.map((group) => (
-                  <div key={group}>
-                    <div className="text-xs text-slate-400 mb-1">{group}</div>
-                    <div className="space-y-1">
-                      {pageStateOptions
-                        .filter((opt) => opt.group === group)
-                        .map((opt) => (
-                          <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="radio"
-                              name="pageState"
-                              checked={pageState === opt.value}
-                              onChange={() => onPageStateChange(opt.value)}
-                              className="w-4 h-4 text-primary-500"
-                            />
-                            <span className="text-sm text-slate-600">{opt.label}</span>
-                          </label>
-                        ))}
+              <div className="text-xs font-medium text-slate-500 mb-2">场景（对齐 PRD v3）</div>
+              <div className="space-y-2">
+                {scenarioOptions.map((opt) => (
+                  <label
+                    key={opt.value}
+                    className={`flex items-start gap-2 cursor-pointer p-2 rounded-lg transition-colors ${
+                      stateConfig.scenario === opt.value ? 'bg-primary-50 border border-primary-200' : 'hover:bg-slate-50'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="scenario"
+                      checked={stateConfig.scenario === opt.value}
+                      onChange={() => handleScenarioChange(opt.value)}
+                      className="w-4 h-4 text-primary-500 mt-0.5"
+                    />
+                    <div>
+                      <div className="text-sm text-slate-700 font-medium">{opt.label}</div>
+                      <div className="text-xs text-slate-400">{opt.description}</div>
                     </div>
-                  </div>
+                  </label>
                 ))}
               </div>
             </div>
 
+            {/* 消息状态 */}
+            <div>
+              <div className="text-xs font-medium text-slate-500 mb-2">消息状态</div>
+              <div className="flex flex-wrap gap-2">
+                {messageStateOptions
+                  .filter(opt => availableStates.includes(opt.value))
+                  .map((opt) => (
+                    <button
+                      key={opt.value}
+                      onClick={() => handleMessageStateChange(opt.value)}
+                      className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
+                        stateConfig.messageState === opt.value
+                          ? 'bg-primary-500 text-white'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+              </div>
+            </div>
+
+            {/* 任务进度（仅场景C/D执行中） */}
+            {showTaskProgress && (
+              <div>
+                <div className="text-xs font-medium text-slate-500 mb-2">任务进度</div>
+                <div className="flex flex-wrap gap-2">
+                  {taskProgressOptions.map((opt) => (
+                    <button
+                      key={opt.value}
+                      onClick={() => handleTaskProgressChange(opt.value)}
+                      className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
+                        stateConfig.taskProgress === opt.value
+                          ? 'bg-warning-500 text-white'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 当前状态摘要 */}
+            <div className="bg-slate-50 rounded-lg p-3">
+              <div className="text-xs font-medium text-slate-500 mb-1">当前状态</div>
+              <div className="text-sm text-slate-700">
+                <span className="font-medium">场景{stateConfig.scenario}</span>
+                <span className="mx-1">·</span>
+                <span>{messageStateOptions.find(o => o.value === stateConfig.messageState)?.label}</span>
+                {showTaskProgress && stateConfig.taskProgress && (
+                  <>
+                    <span className="mx-1">·</span>
+                    <span>{taskProgressOptions.find(o => o.value === stateConfig.taskProgress)?.label}</span>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* 功能开关 */}
             <div>
               <div className="text-xs font-medium text-slate-500 mb-2">功能演示</div>
               <div className="space-y-1">
                 <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={features.showKnowledgeRef} onChange={() => toggleFeature('showKnowledgeRef')} className="w-4 h-4 text-primary-500 rounded" />
+                  <input
+                    type="checkbox"
+                    checked={features.showKnowledgeRef}
+                    onChange={() => toggleFeature('showKnowledgeRef')}
+                    className="w-4 h-4 text-primary-500 rounded"
+                  />
                   <span className="text-sm text-slate-600">显示知识引用</span>
                 </label>
                 <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={features.showFeedbackPanel} onChange={() => toggleFeature('showFeedbackPanel')} className="w-4 h-4 text-primary-500 rounded" />
+                  <input
+                    type="checkbox"
+                    checked={features.showFeedbackPanel}
+                    onChange={() => toggleFeature('showFeedbackPanel')}
+                    className="w-4 h-4 text-primary-500 rounded"
+                  />
                   <span className="text-sm text-slate-600">显示反馈面板</span>
                 </label>
                 <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={features.showHistory} onChange={() => toggleFeature('showHistory')} className="w-4 h-4 text-primary-500 rounded" />
+                  <input
+                    type="checkbox"
+                    checked={features.showHistory}
+                    onChange={() => toggleFeature('showHistory')}
+                    className="w-4 h-4 text-primary-500 rounded"
+                  />
                   <span className="text-sm text-slate-600">显示会话历史</span>
                 </label>
               </div>
