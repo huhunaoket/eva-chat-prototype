@@ -283,7 +283,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({ stateConfig, onSend, onSto
             onChange={(e) => setMessage(e.target.value)}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
-            placeholder='问问 EVA'
+            placeholder='输入您的问题... (Enter 发送，Shift+Enter 换行)'
             disabled={isGenerating}
             rows={2}
             className="w-full px-4 py-3 bg-transparent resize-none focus:outline-none disabled:opacity-50 text-slate-700 placeholder:text-slate-400"

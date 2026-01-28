@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { ViewMode, PageStateConfig, FeatureOptions } from './types';
+import { ViewMode, PageStateConfig, FeatureOptions, PageViewState } from './types';
 import { StateSwitcher } from './components/StateSwitcher';
 import { PlaygroundLayout } from './components/PlaygroundLayout';
 import { StandaloneLayout } from './components/StandaloneLayout';
@@ -12,6 +12,7 @@ import { WidgetLayout } from './components/WidgetLayout';
 
 export default function App() {
   const [viewMode, setViewMode] = useState<ViewMode>('playground');
+  const [pageViewState, setPageViewState] = useState<PageViewState>('conversation');
   const [stateConfig, setStateConfig] = useState<PageStateConfig>({
     scenario: 'A',
     messageState: 'complete',
@@ -32,6 +33,8 @@ export default function App() {
         onStateConfigChange={setStateConfig}
         features={features}
         onFeaturesChange={setFeatures}
+        pageViewState={pageViewState}
+        onPageViewStateChange={setPageViewState}
       />
 
       {/* 环境动画背景 */}
@@ -44,6 +47,7 @@ export default function App() {
             stateConfig={stateConfig}
             features={features}
             onStateConfigChange={setStateConfig}
+            pageViewState={pageViewState}
           />
         )}
         {viewMode === 'standalone' && (
@@ -51,6 +55,7 @@ export default function App() {
             stateConfig={stateConfig}
             features={features}
             onStateConfigChange={setStateConfig}
+            pageViewState={pageViewState}
           />
         )}
         {viewMode === 'widget' && (
@@ -58,6 +63,7 @@ export default function App() {
             stateConfig={stateConfig}
             features={features}
             onStateConfigChange={setStateConfig}
+            pageViewState={pageViewState}
           />
         )}
       </div>

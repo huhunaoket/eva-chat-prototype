@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { PageStateConfig, FeatureOptions, Attachment, Scenario } from '../types';
+import { PageStateConfig, FeatureOptions, Attachment, Scenario, PageViewState } from '../types';
 import { AgentResponse } from './AgentResponse';
 import { TaskList } from './TaskList';
 import { AttachmentCard } from './ChatInput';
@@ -16,7 +16,7 @@ interface ChatAreaProps {
   isPlayground: boolean;
   onStateConfigChange?: (config: PageStateConfig) => void;
   hideWelcomeQuestions?: boolean;
-  isEmptySession?: boolean;
+  pageViewState?: PageViewState;
 }
 
 // 推荐问题
@@ -45,7 +45,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   isPlayground,
   onStateConfigChange,
   hideWelcomeQuestions = false,
-  isEmptySession = false,
+  pageViewState = 'conversation',
 }) => {
   const { scenario, messageState } = stateConfig;
 
@@ -67,8 +67,10 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     }
   };
 
-  // 空状态（欢迎页）- 当是空会话时显示
-  const isEmptyState = isEmptySession;
+  // 根据 pageViewState 判断显示内容
+  const showInitPage = pageViewState === 'init';
+  const showWelcomePage = pageViewState === 'welcome';
+  const showConversation = pageViewState === 'conversation';
 
   // 根据场景获取用户问题和附件
   const getUserContent = (): { text: string; attachments?: Attachment[] } => {
@@ -98,13 +100,17 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
       {/* 消息列表区域 - 可滚动 */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide min-h-0">
-        {/* 空会话欢迎页 */}
-        {isEmptyState ? (
+        {/* 初始化引导页 */}
+        {showInitPage ? (
+          <InitGuidePage />
+        ) : showWelcomePage ? (
+          /* 欢迎页 */
           <WelcomePage
             hideQuestions={hideWelcomeQuestions}
             onSendQuestion={handleSendQuestion}
           />
         ) : (
+          /* 对话中 */
           <>
             {/* 用户消息 */}
             <UserMessage content={userContent.text} attachments={userContent.attachments} />
@@ -233,13 +239,8 @@ interface WelcomePageProps {
 const WelcomePage: React.FC<WelcomePageProps> = ({ hideQuestions = false, onSendQuestion }) => {
   return (
     <div className="flex-1 flex flex-col items-center justify-center text-center px-8 py-12">
-      {/* Agent 头像 */}
-      <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center text-3xl mb-6 shadow-lg">
-        🤖
-      </div>
       {/* 开场白 */}
-      <h2 className="text-xl font-semibold text-slate-800 mb-2">你好，我是智能助手</h2>
-      <p className="text-slate-500 mb-8">很高兴为您服务！</p>
+      <p className="text-lg text-slate-600 mb-8">很高兴为您服务，请问有什么可以帮您？</p>
       {/* 推荐问题（Playground显示，终端用户隐藏） */}
       {!hideQuestions && (
         <div className="w-full max-w-md space-y-3">
@@ -255,6 +256,17 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ hideQuestions = false, onSend
           ))}
         </div>
       )}
+    </div>
+  );
+};
+
+// 初始化引导页组件（企业未完成初始化时显示）
+const InitGuidePage: React.FC = () => {
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center text-center px-8 py-12">
+      {/* 引导文案 */}
+      <h2 className="text-xl font-semibold text-slate-800 mb-3">智能体创建中</h2>
+      <p className="text-slate-500">完成初始化后即可开始测试 Agent</p>
     </div>
   );
 };

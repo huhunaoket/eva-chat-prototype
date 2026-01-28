@@ -5,7 +5,7 @@
 
 import React, { useState } from 'react';
 import { Plus, MessageSquare, Trash2, Menu, X } from 'lucide-react';
-import { PageStateConfig, FeatureOptions, Attachment, ChatSession } from '../types';
+import { PageStateConfig, FeatureOptions, Attachment, ChatSession, PageViewState } from '../types';
 import { ChatArea } from './ChatArea';
 import { ChatInput } from './ChatInput';
 
@@ -13,6 +13,7 @@ interface StandaloneLayoutProps {
   stateConfig: PageStateConfig;
   features: FeatureOptions;
   onStateConfigChange: (config: PageStateConfig) => void;
+  pageViewState: PageViewState;
 }
 
 // 模拟会话历史数据
@@ -27,6 +28,7 @@ export const StandaloneLayout: React.FC<StandaloneLayoutProps> = ({
   stateConfig,
   features,
   onStateConfigChange,
+  pageViewState,
 }) => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -142,13 +144,15 @@ export const StandaloneLayout: React.FC<StandaloneLayoutProps> = ({
             isPlayground={false}
             onStateConfigChange={onStateConfigChange}
             hideWelcomeQuestions={true}
-            isEmptySession={activeSessionId === null}
+            pageViewState={pageViewState}
           />
-          <ChatInput
-            stateConfig={stateConfig}
-            onSend={handleSend}
-            onStop={handleStop}
-          />
+          {pageViewState !== 'init' && (
+            <ChatInput
+              stateConfig={stateConfig}
+              onSend={handleSend}
+              onStop={handleStop}
+            />
+          )}
         </div>
 
         {/* 底部品牌 */}

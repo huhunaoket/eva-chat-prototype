@@ -4,8 +4,8 @@
  */
 
 import React, { useState } from 'react';
-import { MessageCircle, X, Minus, MoreHorizontal, Plus, History, MessageSquare, Trash2 } from 'lucide-react';
-import { PageStateConfig, FeatureOptions, Attachment, ChatSession } from '../types';
+import { MessageCircle, X, MoreHorizontal, Plus, History, MessageSquare, Trash2 } from 'lucide-react';
+import { PageStateConfig, FeatureOptions, Attachment, ChatSession, PageViewState } from '../types';
 import { ChatArea } from './ChatArea';
 import { ChatInput } from './ChatInput';
 
@@ -13,6 +13,7 @@ interface WidgetLayoutProps {
   stateConfig: PageStateConfig;
   features: FeatureOptions;
   onStateConfigChange: (config: PageStateConfig) => void;
+  pageViewState: PageViewState;
 }
 
 // 模拟会话历史数据
@@ -27,6 +28,7 @@ export const WidgetLayout: React.FC<WidgetLayoutProps> = ({
   stateConfig,
   features,
   onStateConfigChange,
+  pageViewState,
 }) => {
   const [isOpen, setIsOpen] = useState(true);
   const [showMenu, setShowMenu] = useState(false);
@@ -120,9 +122,8 @@ export const WidgetLayout: React.FC<WidgetLayoutProps> = ({
         <div className="w-96 h-[600px] bg-white rounded-eva-lg shadow-eva-lg flex flex-col overflow-hidden">
           {/* 顶部栏 */}
           <div className="h-12 bg-primary-500 flex items-center justify-between px-4 relative">
-            <span className="font-medium text-white">示例企业</span>
+            {/* 左侧：扩展菜单按钮 */}
             <div className="flex items-center gap-1">
-              {/* 扩展菜单按钮 */}
               <div className="relative">
                 <button
                   onClick={() => setShowMenu(!showMenu)}
@@ -133,7 +134,7 @@ export const WidgetLayout: React.FC<WidgetLayoutProps> = ({
                 </button>
                 {/* 下拉菜单 */}
                 {showMenu && (
-                  <div className="absolute right-0 top-full mt-1 w-40 bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-50">
+                  <div className="absolute left-0 top-full mt-1 w-40 bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-50">
                     <button
                       onClick={handleNewChat}
                       className="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
@@ -151,15 +152,11 @@ export const WidgetLayout: React.FC<WidgetLayoutProps> = ({
                   </div>
                 )}
               </div>
-              {/* 最小化按钮 */}
-              <button
-                onClick={handleMinimize}
-                className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-                title="最小化"
-              >
-                <Minus size={18} />
-              </button>
-              {/* 关闭按钮 */}
+            </div>
+            {/* 中间：标题 */}
+            <span className="font-medium text-white">示例企业</span>
+            {/* 右侧：关闭按钮 */}
+            <div className="flex items-center gap-1">
               <button
                 onClick={handleClose}
                 className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
@@ -186,13 +183,15 @@ export const WidgetLayout: React.FC<WidgetLayoutProps> = ({
               isPlayground={false}
               onStateConfigChange={onStateConfigChange}
               hideWelcomeQuestions={true}
-              isEmptySession={activeSessionId === null}
+              pageViewState={pageViewState}
             />
-            <ChatInput
-              stateConfig={stateConfig}
-              onSend={handleSend}
-              onStop={handleStop}
-            />
+            {pageViewState !== 'init' && (
+              <ChatInput
+                stateConfig={stateConfig}
+                onSend={handleSend}
+                onStop={handleStop}
+              />
+            )}
           </div>
 
           {/* 底部品牌 */}

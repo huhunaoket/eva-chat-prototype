@@ -4,7 +4,7 @@
 
 import React, { useState } from 'react';
 import { Plus, History, LogOut } from 'lucide-react';
-import { PageStateConfig, FeatureOptions, Attachment } from '../types';
+import { PageStateConfig, FeatureOptions, Attachment, PageViewState } from '../types';
 import { ChatArea } from './ChatArea';
 import { ChatInput } from './ChatInput';
 import { ChatHistory } from './ChatHistory';
@@ -17,12 +17,14 @@ interface PlaygroundLayoutProps {
   stateConfig: PageStateConfig;
   features: FeatureOptions;
   onStateConfigChange: (config: PageStateConfig) => void;
+  pageViewState: PageViewState;
 }
 
 export const PlaygroundLayout: React.FC<PlaygroundLayoutProps> = ({
   stateConfig,
   features,
   onStateConfigChange,
+  pageViewState,
 }) => {
   const [showHistory, setShowHistory] = useState(features.showHistory);
   const [currentView, setCurrentView] = useState<DashboardView>('playground');
@@ -104,12 +106,15 @@ export const PlaygroundLayout: React.FC<PlaygroundLayoutProps> = ({
                   features={features}
                   isPlayground={true}
                   onStateConfigChange={onStateConfigChange}
+                  pageViewState={pageViewState}
                 />
-                <ChatInput
-                  stateConfig={stateConfig}
-                  onSend={handleSend}
-                  onStop={handleStop}
-                />
+                {pageViewState !== 'init' && (
+                  <ChatInput
+                    stateConfig={stateConfig}
+                    onSend={handleSend}
+                    onStop={handleStop}
+                  />
+                )}
               </div>
             </div>
 

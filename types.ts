@@ -1,6 +1,14 @@
 // 视角类型
 export type ViewMode = 'playground' | 'standalone' | 'widget';
 
+/**
+ * 页面视图状态（对齐 PRD v3 3.1 欢迎页模块）
+ * - init: 初始化引导页（企业未完成初始化）
+ * - welcome: 欢迎页（企业已初始化，空会话）
+ * - conversation: 对话中（有消息）
+ */
+export type PageViewState = 'init' | 'welcome' | 'conversation';
+
 // ============================================
 // 场景和状态定义（对齐 PRD v3 3.3.2 场景交互详解）
 // ============================================

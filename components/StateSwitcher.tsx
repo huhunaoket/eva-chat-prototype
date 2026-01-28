@@ -5,7 +5,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { ChevronDown, ChevronUp, Settings, GripVertical } from 'lucide-react';
-import { ViewMode, Scenario, MessageState, TaskProgress, PageStateConfig, FeatureOptions } from '../types';
+import { ViewMode, Scenario, MessageState, TaskProgress, PageStateConfig, FeatureOptions, PageViewState } from '../types';
 
 interface StateSwitcherProps {
   viewMode: ViewMode;
@@ -14,12 +14,21 @@ interface StateSwitcherProps {
   onStateConfigChange: (config: PageStateConfig) => void;
   features: FeatureOptions;
   onFeaturesChange: (features: FeatureOptions) => void;
+  pageViewState: PageViewState;
+  onPageViewStateChange: (state: PageViewState) => void;
 }
 
 const viewModeOptions: { value: ViewMode; label: string }[] = [
   { value: 'playground', label: 'Playground（管理员）' },
   { value: 'standalone', label: '终端用户（独立网页）' },
   { value: 'widget', label: '终端用户（Widget）' },
+];
+
+// 页面视图状态（对齐 PRD v3 3.1 欢迎页模块）
+const pageViewStateOptions: { value: PageViewState; label: string; description: string }[] = [
+  { value: 'init', label: '初始化引导', description: '企业未完成初始化' },
+  { value: 'welcome', label: '欢迎页', description: '企业已初始化，空会话' },
+  { value: 'conversation', label: '对话中', description: '有消息历史' },
 ];
 
 // 场景定义（对齐 PRD v3）
@@ -73,6 +82,8 @@ export const StateSwitcher: React.FC<StateSwitcherProps> = ({
   onStateConfigChange,
   features,
   onFeaturesChange,
+  pageViewState,
+  onPageViewStateChange,
 }) => {
   const [isExpanded, setIsExpanded] = useState(true);
   const [position, setPosition] = useState({ x: 16, y: 16 });
@@ -203,7 +214,36 @@ export const StateSwitcher: React.FC<StateSwitcherProps> = ({
               </div>
             </div>
 
-            {/* 场景选择 */}
+            {/* 页面视图状态切换 */}
+            <div>
+              <div className="text-xs font-medium text-slate-500 mb-2">页面状态（对齐 PRD v3 3.1）</div>
+              <div className="space-y-2">
+                {pageViewStateOptions.map((opt) => (
+                  <label
+                    key={opt.value}
+                    className={`flex items-start gap-2 cursor-pointer p-2 rounded-lg transition-colors ${
+                      pageViewState === opt.value ? 'bg-blue-50 border border-blue-200' : 'hover:bg-slate-50'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="pageViewState"
+                      checked={pageViewState === opt.value}
+                      onChange={() => onPageViewStateChange(opt.value)}
+                      className="w-4 h-4 text-blue-500 mt-0.5"
+                    />
+                    <div>
+                      <div className="text-sm text-slate-700 font-medium">{opt.label}</div>
+                      <div className="text-xs text-slate-400">{opt.description}</div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* 场景选择（仅对话中状态显示） */}
+            {pageViewState === 'conversation' && (
+            <>
             <div>
               <div className="text-xs font-medium text-slate-500 mb-2">场景（对齐 PRD v3）</div>
               <div className="space-y-2">
@@ -289,6 +329,8 @@ export const StateSwitcher: React.FC<StateSwitcherProps> = ({
                 )}
               </div>
             </div>
+            </>
+            )}
 
             {/* 功能开关 */}
             <div>
