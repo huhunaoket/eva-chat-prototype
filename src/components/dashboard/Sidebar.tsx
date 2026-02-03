@@ -17,7 +17,7 @@ export type DashboardView = 'home' | 'playground' | 'knowledge' | 'evolution' | 
 
 export const NAV_ITEMS = [
   { id: 'home' as const, label: '智能座舱', icon: Home },
-  { id: 'playground' as const, label: 'Agent演练', icon: MessageSquare },
+  { id: 'playground' as const, label: 'Agent效果体验', icon: MessageSquare },
   { id: 'knowledge' as const, label: '知识库', icon: Book },
   { id: 'evolution' as const, label: '进化', icon: Zap },
   { id: 'questions' as const, label: '题库', icon: FileQuestion },

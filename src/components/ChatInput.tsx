@@ -3,14 +3,25 @@
  * 支持文字输入、附件上传（点击、粘贴、拖拽）
  */
 
-import React, { useState, useRef, useCallback } from 'react';
-import { Send, Square, Paperclip, X } from 'lucide-react';
-import { PageStateConfig, Attachment, AttachmentType, SUPPORTED_IMAGE_TYPES, SUPPORTED_DOC_TYPES, MAX_IMAGE_SIZE, MAX_DOC_SIZE, MAX_ATTACHMENTS } from '../types';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { ArrowUp, Square, Paperclip, X } from 'lucide-react';
+import {
+  Attachment,
+  AttachmentType,
+  SUPPORTED_IMAGE_TYPES,
+  SUPPORTED_DOC_TYPES,
+  MAX_IMAGE_SIZE,
+  MAX_DOC_SIZE,
+  MAX_ATTACHMENTS,
+} from '../types';
 
 interface ChatInputProps {
-  stateConfig: PageStateConfig;
   onSend: (message: string, attachments?: Attachment[]) => void;
-  onStop: () => void;
+  onStop?: () => void;
+  disabled?: boolean;
+  isLoading?: boolean;
+  placeholder?: string;
+  compact?: boolean;  // 紧凑模式（用于 Widget）
 }
 
 // 模拟上传（原型演示用）
@@ -32,8 +43,8 @@ const getAttachmentType = (file: File): AttachmentType | null => {
 // 格式化文件大小
 const formatFileSize = (bytes: number): string => {
   if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
 // 截断文件名（中间省略）
@@ -53,7 +64,7 @@ const getFileIconBg = (name: string): string => {
   if (['xls', 'xlsx', 'csv'].includes(ext)) return 'bg-green-100 text-green-600';
   if (['pdf'].includes(ext)) return 'bg-red-100 text-red-600';
   if (['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext)) return 'bg-purple-100 text-purple-600';
-  return 'bg-slate-100 text-slate-600';
+  return 'bg-gray-100 text-gray-600';
 };
 
 // 获取文件图标文字
@@ -65,18 +76,29 @@ const getFileIconText = (name: string): string => {
   return ext.slice(0, 2).toUpperCase() || 'F';
 };
 
-export const ChatInput: React.FC<ChatInputProps> = ({ stateConfig, onSend, onStop }) => {
+export const ChatInput: React.FC<ChatInputProps> = ({
+  onSend,
+  onStop,
+  disabled = false,
+  isLoading = false,
+  placeholder = '输入您的问题...',
+  compact = false,
+}) => {
   const [message, setMessage] = useState('');
+  const [isComposing, setIsComposing] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { messageState } = stateConfig;
-  const isGenerating = messageState === 'thinking' ||
-                       messageState === 'executing' ||
-                       messageState === 'streaming';
+  // 自动调整高度
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`;
+    }
+  }, [message]);
 
   // 显示 Toast 提示
   const showToast = useCallback((msg: string) => {
@@ -210,23 +232,23 @@ export const ChatInput: React.FC<ChatInputProps> = ({ stateConfig, onSend, onSto
     }
   }, [handleFiles]);
 
-  // 提交消息
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = () => {
     const hasContent = message.trim() || attachments.some(a => a.status === 'success');
     const hasUploading = attachments.some(a => a.status === 'uploading');
     
-    if (hasContent && !isGenerating && !hasUploading) {
-      onSend(message, attachments.filter(a => a.status === 'success'));
+    if (hasContent && !disabled && !isLoading && !hasUploading) {
+      onSend(message.trim(), attachments.filter(a => a.status === 'success'));
       setMessage('');
       setAttachments([]);
     }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (isComposing) return;
+    
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSubmit(e);
+      handleSubmit();
     }
   };
 
@@ -234,72 +256,76 @@ export const ChatInput: React.FC<ChatInputProps> = ({ stateConfig, onSend, onSto
                   !attachments.some(a => a.status === 'uploading');
 
   return (
-    <div
-      className={`border-t border-slate-200 bg-white relative flex-shrink-0 ${isDragging ? 'ring-2 ring-primary-500 ring-inset' : ''}`}
+    <div 
+      className={`${compact ? 'px-0 pb-0 pt-2' : 'px-4 pb-4 pt-2'} relative overflow-visible ${isDragging ? 'ring-2 ring-blue-500 ring-inset rounded-lg' : ''}`}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
       {/* Toast 提示 */}
       {toast && (
-        <div className="absolute -top-12 left-1/2 -translate-x-1/2 px-4 py-2 bg-slate-800 text-white text-sm rounded-lg shadow-lg z-10">
+        <div className="absolute -top-12 left-1/2 -translate-x-1/2 px-4 py-2 bg-gray-800 text-white text-sm rounded-lg shadow-lg z-10">
           {toast}
         </div>
       )}
 
       {/* 拖拽提示 */}
       {isDragging && (
-        <div className="absolute inset-0 bg-primary-50/90 flex items-center justify-center z-10 border-2 border-dashed border-primary-400 rounded-lg m-2">
+        <div className="absolute inset-2 bg-blue-50/90 flex items-center justify-center z-10 border-2 border-dashed border-blue-400 rounded-xl">
           <div className="text-center">
             <div className="text-3xl mb-2">📥</div>
-            <div className="text-primary-600 font-medium">松开鼠标上传文件</div>
+            <div className="text-blue-600 font-medium">松开鼠标上传文件</div>
           </div>
         </div>
       )}
 
-      <div className="p-4">
-        {/* 输入框容器 */}
-        <div className="bg-slate-50 border border-slate-200 rounded-xl focus-within:ring-2 focus-within:ring-primary-500 focus-within:border-transparent relative">
-          {/* 附件预览区 */}
-          {attachments.length > 0 && (
-            <div className="px-4 pt-3 pb-2 border-b border-slate-100">
-              <div className="flex gap-3 overflow-x-auto pb-1">
-                {attachments.map(att => (
-                  <AttachmentCard 
-                    key={att.id} 
-                    attachment={att} 
-                    onRemove={() => removeAttachment(att.id)}
-                    canRemove={true}
-                  />
-                ))}
-              </div>
+      {/* 输入框卡片 */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-visible">
+        {/* 附件预览区 - 增加上边距让删除按钮和tooltip有空间 */}
+        {attachments.length > 0 && (
+          <div className="px-4 pt-5 pb-2 border-b border-gray-100 overflow-visible">
+            <div className="flex gap-3 overflow-visible">
+              {attachments.map(att => (
+                <AttachmentCard 
+                  key={att.id} 
+                  attachment={att} 
+                  onRemove={() => removeAttachment(att.id)}
+                />
+              ))}
             </div>
-          )}
+          </div>
+        )}
 
-          {/* 文本输入区 */}
-          <textarea
-            ref={textareaRef}
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            onKeyDown={handleKeyDown}
-            onPaste={handlePaste}
-            placeholder='输入您的问题... (Enter 发送，Shift+Enter 换行)'
-            disabled={isGenerating}
-            rows={2}
-            className="w-full px-4 py-3 bg-transparent resize-none focus:outline-none disabled:opacity-50 text-slate-700 placeholder:text-slate-400"
-          />
+        <div className="flex items-end">
+          {/* 输入区域 */}
+          <div className="flex-1">
+            <textarea
+              ref={textareaRef}
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onCompositionStart={() => setIsComposing(true)}
+              onCompositionEnd={() => setIsComposing(false)}
+              onPaste={handlePaste}
+              placeholder={placeholder}
+              disabled={disabled}
+              rows={1}
+              className="w-full resize-none border-none px-4 py-3 focus:outline-none focus:ring-0 disabled:bg-transparent disabled:cursor-not-allowed text-gray-700 placeholder-gray-400 bg-transparent"
+              style={{ minHeight: compact ? '48px' : '72px', maxHeight: '200px' }}
+            />
+          </div>
 
-          {/* 底部工具栏 */}
-          <div className="flex items-center justify-end gap-2 px-3 pb-3">
+          {/* 工具栏 */}
+          <div className="flex items-center gap-1 pr-3 pb-2">
             {/* 附件按钮 */}
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              disabled={isGenerating || attachments.length >= MAX_ATTACHMENTS}
-              className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={isLoading || attachments.length >= MAX_ATTACHMENTS}
+              className="w-9 h-9 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               title="上传附件"
             >
-              <Paperclip size={20} />
+              <Paperclip size={18} />
             </button>
 
             {/* 隐藏的文件输入 */}
@@ -313,50 +339,53 @@ export const ChatInput: React.FC<ChatInputProps> = ({ stateConfig, onSend, onSto
             />
 
             {/* 发送/停止按钮 */}
-            {isGenerating ? (
+            {isLoading ? (
               <button
-                type="button"
                 onClick={onStop}
-                className="p-2 bg-slate-800 text-white rounded-lg hover:bg-slate-700 transition-colors"
+                className="w-9 h-9 flex items-center justify-center bg-blue-500 text-white rounded-full hover:bg-blue-600 transition-colors"
+                title="停止生成"
               >
-                <Square size={18} fill="currentColor" />
+                <Square size={14} fill="currentColor" />
               </button>
             ) : (
               <button
-                type="button"
                 onClick={handleSubmit}
-                disabled={!canSend}
-                className="p-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                disabled={disabled}
+                className={`w-9 h-9 flex items-center justify-center rounded-full transition-colors ${
+                  canSend 
+                    ? 'bg-blue-500 text-white hover:bg-blue-600' 
+                    : 'bg-gray-300 text-white cursor-not-allowed'
+                }`}
+                title="发送"
               >
-                <Send size={18} />
+                <ArrowUp size={18} strokeWidth={2.5} />
               </button>
             )}
           </div>
         </div>
       </div>
-
-      <div className="px-4 pb-3 text-center">
-        <span className="text-xs text-slate-400">内容由 AI 生成，请仔细甄别</span>
-      </div>
     </div>
   );
 };
 
-// 附件卡片组件（横向样式）
+// 附件卡片组件（导出供其他组件使用）
 interface AttachmentCardProps {
   attachment: Attachment;
   onRemove?: () => void;
   canRemove?: boolean;
 }
 
-export const AttachmentCard: React.FC<AttachmentCardProps> = ({ attachment, onRemove, canRemove = false }) => {
-  const { type, name, size, status, progress, previewUrl } = attachment;
+export const AttachmentCard: React.FC<AttachmentCardProps> = ({ attachment, onRemove, canRemove = true }) => {
+  const { type, name, size, status, progress, previewUrl, url } = attachment;
   const [showTooltip, setShowTooltip] = useState(false);
   
   const isUploading = status === 'uploading';
   const isError = status === 'error';
   const truncatedName = truncateFileName(name, 14);
   const needsTooltip = name !== truncatedName;
+  
+  // 显示的图片URL（优先使用url，其次previewUrl）
+  const displayImageUrl = url || previewUrl;
 
   return (
     <div 
@@ -364,28 +393,28 @@ export const AttachmentCard: React.FC<AttachmentCardProps> = ({ attachment, onRe
       onMouseEnter={() => setShowTooltip(true)}
       onMouseLeave={() => setShowTooltip(false)}
     >
-      {/* 完整文件名 Tooltip - 显示在下方 */}
+      {/* 完整文件名 Tooltip - 显示在上方 */}
       {needsTooltip && showTooltip && (
-        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-3 py-2 bg-slate-800 text-white text-sm rounded-lg whitespace-nowrap z-50 shadow-lg">
+        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-gray-800 text-white text-sm rounded-lg whitespace-nowrap z-50 shadow-lg">
           {name}
-          <div className="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-slate-800" />
+          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
         </div>
       )}
 
-      <div className={`flex items-center gap-3 px-3 py-2 bg-white border rounded-xl min-w-[160px] max-w-[200px] ${
-        isError ? 'border-red-200 bg-red-50' : 'border-slate-200'
+      <div className={`flex items-center gap-3 px-3 py-2 bg-gray-50 border rounded-xl min-w-[160px] max-w-[200px] ${
+        isError ? 'border-red-200 bg-red-50' : 'border-gray-200'
       }`}>
         {/* 图标 */}
         <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
           isError ? 'bg-red-100 text-red-500' : 
-          type === 'image' && previewUrl ? '' : getFileIconBg(name)
+          type === 'image' && displayImageUrl ? '' : getFileIconBg(name)
         }`}>
           {isUploading ? (
-            <div className="w-6 h-6 border-2 border-slate-300 border-t-primary-500 rounded-full animate-spin" />
+            <div className="w-6 h-6 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin" />
           ) : isError ? (
             <X size={20} />
-          ) : type === 'image' && previewUrl ? (
-            <img src={previewUrl} alt={name} className="w-10 h-10 rounded-lg object-cover" />
+          ) : type === 'image' && displayImageUrl ? (
+            <img src={displayImageUrl} alt={name} className="w-10 h-10 rounded-lg object-cover" />
           ) : (
             <span className="text-sm font-semibold">{getFileIconText(name)}</span>
           )}
@@ -393,22 +422,22 @@ export const AttachmentCard: React.FC<AttachmentCardProps> = ({ attachment, onRe
 
         {/* 文件信息 */}
         <div className="flex-1 min-w-0">
-          <div className={`text-sm font-medium truncate ${isError ? 'text-red-600' : 'text-slate-700'}`}>
+          <div className={`text-sm font-medium truncate ${isError ? 'text-red-600' : 'text-gray-700'}`}>
             {isError ? '上传失败' : truncatedName}
           </div>
-          <div className="text-xs text-slate-400">
+          <div className="text-xs text-gray-400">
             {isUploading ? `${progress}%` : formatFileSize(size)}
           </div>
         </div>
 
         {/* 删除按钮 */}
-        {canRemove && (
+        {canRemove && onRemove && (
           <button
             onClick={(e) => {
               e.stopPropagation();
-              onRemove?.();
+              onRemove();
             }}
-            className="absolute -top-2 -right-2 w-5 h-5 bg-slate-600 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500 shadow-sm"
+            className="absolute -top-2 -right-2 w-5 h-5 bg-gray-600 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500 shadow-sm"
           >
             <X size={12} />
           </button>
