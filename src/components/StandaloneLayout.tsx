@@ -175,9 +175,18 @@ export const StandaloneLayout: React.FC<StandaloneLayoutProps> = ({
             <Menu size={20} />
           </button>
           <div className="flex-1 text-center">
-            <span className="text-sm text-slate-500">
-              {activeSessionId ? sessions.find(s => s.id === activeSessionId)?.title : '新对话'}
-            </span>
+            {/* 标题展示规则：
+                - 初始状态（无消息）：空白
+                - 开始对话后：显示"当前对话"
+                - 选中历史会话时：显示该会话的标题
+            */}
+            {activeSessionId ? (
+              <span className="text-sm font-medium text-slate-700">
+                {sessions.find(s => s.id === activeSessionId)?.title}
+              </span>
+            ) : hasMessages ? (
+              <span className="text-sm font-medium text-slate-700">当前对话</span>
+            ) : null}
           </div>
           <div className="w-10" />
         </div>

@@ -1568,11 +1568,18 @@ export default function App() {
             {currentView === 'playground' && (
               <>
                 {/* 头部 */}
-                <header className="flex-shrink-0 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <h1 className="text-lg font-semibold text-gray-800">新对话</h1>
+                <header className="flex-shrink-0 bg-white border-b border-gray-200 h-14 px-4 flex items-center justify-between">
+                  <div className="flex items-center gap-2 w-32">
                     {chatMode === 'mock' && (
                       <span className="px-2 py-0.5 text-xs bg-orange-100 text-orange-600 rounded-full">模拟模式</span>
+                    )}
+                  </div>
+                  {/* 标题居中：有消息时显示，无消息时不显示 */}
+                  <div className="flex-1 text-center">
+                    {messageList.length > 0 && (
+                      <span className="text-sm font-medium text-slate-700">
+                        {userMessages[0]?.content.slice(0, 20)}{userMessages[0]?.content.length > 20 ? '...' : ''}
+                      </span>
                     )}
                   </div>
                   <div className="flex items-center gap-2">

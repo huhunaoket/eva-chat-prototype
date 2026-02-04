@@ -1,15 +1,18 @@
 import React, { useState } from 'react';
-import { 
-  Monitor, 
-  Code, 
-  Copy, 
-  ExternalLink, 
-  RefreshCw, 
+import {
+  Monitor,
+  Code,
+  Copy,
+  ExternalLink,
+  RefreshCw,
   Check,
   Terminal,
   AlertCircle,
   ChevronDown,
-  Edit2
+  Edit2,
+  Key,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { Modal } from './Modal';
 
@@ -28,6 +31,12 @@ export const DeploymentView: React.FC = () => {
   // Modals
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showInitWarning, setShowInitWarning] = useState(false);
+  const [showApiKeyResetConfirm, setShowApiKeyResetConfirm] = useState(false);
+
+  // API Key State
+  const [apiKey, setApiKey] = useState<string>('sk-7f8a9b2c3d4e5f6g7h8i9j0k1l2m3n4o');
+  const [showFullApiKey, setShowFullApiKey] = useState(false);
+  const [isResettingApiKey, setIsResettingApiKey] = useState(false);
 
   // Embed Config State
   const [whitelistEnabled, setWhitelistEnabled] = useState(false);
@@ -93,6 +102,29 @@ export const DeploymentView: React.FC = () => {
   const handleCancelEditWhitelist = () => {
     setTempWhitelistDomains('');
     setIsEditingWhitelist(false);
+  };
+
+  // API Key 脱敏显示
+  const getMaskedApiKey = (key: string) => {
+    if (key.length <= 8) return key;
+    return `${key.substring(0, 3)}${'*'.repeat(24)}${key.substring(key.length - 4)}`;
+  };
+
+  // 重置 API Key
+  const handleResetApiKey = async () => {
+    setIsResettingApiKey(true);
+    setShowApiKeyResetConfirm(false);
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    // 生成新的 API Key
+    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    let newKey = 'sk-';
+    for (let i = 0; i < 32; i++) {
+      newKey += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setApiKey(newKey);
+    setIsResettingApiKey(false);
+    setShowFullApiKey(true); // 重置后显示完整 Key
+    setTimeout(() => setShowFullApiKey(false), 5000); // 5秒后自动隐藏
   };
 
   const embedCode = `<!-- 以下代码请放入前端html文件的body内 -->
@@ -402,24 +434,77 @@ export const DeploymentView: React.FC = () => {
         </div>
 
         {/* API Integration Card */}
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 flex items-start gap-6">
-          <div className="w-12 h-12 bg-emerald-500 rounded-xl flex items-center justify-center shrink-0 text-white">
-            <Terminal size={24} />
-          </div>
-          <div className="flex-1 flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-bold text-gray-900">API 接入</h3>
-              <p className="text-gray-500 text-sm mt-1">通过 API 将智能体集成到您的应用系统中</p>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="p-6 flex items-start gap-6">
+            <div className="w-12 h-12 bg-emerald-500 rounded-xl flex items-center justify-center shrink-0 text-white">
+              <Terminal size={24} />
             </div>
-            <a 
-              href="https://eva.ai/docs/api" 
-              target="_blank" 
-              rel="noreferrer"
-              className="flex items-center gap-2 px-6 py-2.5 border border-gray-200 rounded-lg text-gray-700 font-medium hover:bg-gray-50 hover:text-gray-900 transition-colors"
-            >
-              查看文档
-              <ExternalLink size={16} />
-            </a>
+            <div className="flex-1">
+              <div className="flex items-center justify-between mb-5">
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900">API 接入</h3>
+                  <p className="text-gray-500 text-sm mt-1">通过 API 将智能体集成到您的应用系统中</p>
+                </div>
+                <a
+                  href="https://eva.ai/docs/api"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-gray-700 font-medium hover:bg-gray-50 hover:text-gray-900 transition-colors text-sm"
+                >
+                  查看文档
+                  <ExternalLink size={14} />
+                </a>
+              </div>
+
+              {/* API Key Section */}
+              <div className="bg-gray-50 rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Key size={16} className="text-gray-500" />
+                  <span className="text-sm font-medium text-gray-700">API Key</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 px-3 py-2 bg-white border border-gray-200 rounded-lg flex items-center justify-between">
+                    <code className="text-sm text-gray-700 font-mono">
+                      {showFullApiKey ? apiKey : getMaskedApiKey(apiKey)}
+                    </code>
+                    <button
+                      onClick={() => setShowFullApiKey(!showFullApiKey)}
+                      className="text-gray-400 hover:text-gray-600 transition-colors ml-2"
+                      title={showFullApiKey ? '隐藏' : '显示'}
+                    >
+                      {showFullApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                  <button
+                    onClick={() => handleCopy(apiKey, 'apikey')}
+                    className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium"
+                  >
+                    {copied === 'apikey' ? <Check size={15} /> : <Copy size={15} />}
+                    {copied === 'apikey' ? '已复制' : '复制'}
+                  </button>
+                  <button
+                    onClick={() => setShowApiKeyResetConfirm(true)}
+                    disabled={isResettingApiKey}
+                    className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium disabled:opacity-50"
+                  >
+                    {isResettingApiKey ? (
+                      <>
+                        <RefreshCw size={15} className="animate-spin" />
+                        重置中...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw size={15} />
+                        重置
+                      </>
+                    )}
+                  </button>
+                </div>
+                <p className="text-xs text-gray-400 mt-2">
+                  请妥善保管您的 API Key，不要在公开场合泄露
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -454,8 +539,8 @@ export const DeploymentView: React.FC = () => {
         width="400px"
         footer={
           <div className="flex w-full">
-            <button 
-              onClick={() => setShowInitWarning(false)} 
+            <button
+              onClick={() => setShowInitWarning(false)}
               className="flex-1 px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
             >
               我知道了
@@ -468,6 +553,28 @@ export const DeploymentView: React.FC = () => {
             <AlertCircle className="w-6 h-6" />
           </div>
           <p className="text-gray-600">请先完成企业初始化后再生成部署链接</p>
+        </div>
+      </Modal>
+
+      {/* API Key Reset Confirmation Modal */}
+      <Modal
+        title="重置 API Key 确认"
+        isOpen={showApiKeyResetConfirm}
+        onClose={() => setShowApiKeyResetConfirm(false)}
+        width="400px"
+        footer={
+          <div className="flex w-full gap-3">
+            <button onClick={() => setShowApiKeyResetConfirm(false)} className="flex-1 px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">取消</button>
+            <button onClick={handleResetApiKey} className="flex-1 px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">确认重置</button>
+          </div>
+        }
+      >
+        <div className="text-center py-4">
+          <div className="w-12 h-12 bg-amber-50 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Key className="w-6 h-6" />
+          </div>
+          <p className="text-gray-600 mb-2">重置后，旧的 API Key 将立即失效。</p>
+          <p className="text-gray-500 text-sm">使用旧 Key 的服务将无法访问，确定要重置吗？</p>
         </div>
       </Modal>
       </div>
