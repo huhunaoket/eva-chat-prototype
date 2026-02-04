@@ -177,15 +177,19 @@ export const StandaloneLayout: React.FC<StandaloneLayoutProps> = ({
           <div className="flex-1 text-center">
             {/* 标题展示规则：
                 - 初始状态（无消息）：空白
-                - 开始对话后：显示"当前对话"
+                - 开始对话后：显示第一条消息的摘要作为标题
                 - 选中历史会话时：显示该会话的标题
             */}
             {activeSessionId ? (
               <span className="text-sm font-medium text-slate-700">
                 {sessions.find(s => s.id === activeSessionId)?.title}
               </span>
-            ) : hasMessages ? (
-              <span className="text-sm font-medium text-slate-700">当前对话</span>
+            ) : hasMessages && userMessages[0]?.content ? (
+              <span className="text-sm font-medium text-slate-700">
+                {userMessages[0].content.length > 20
+                  ? userMessages[0].content.slice(0, 20) + '...'
+                  : userMessages[0].content}
+              </span>
             ) : null}
           </div>
           <div className="w-10" />
